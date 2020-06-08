@@ -257,16 +257,16 @@ class MLPGaussianAgent(Agent):
                              }
                             )
 
-def get_agent(env,hs=[12]*2,activation=None,policy_type='deterministic'):
+def get_agent(env,hs=[12]*2,activation=None,policy_mode='deterministic'):
     """
     get correct agent based on the kind of action space
     """
     torch.manual_seed(0)
    
-    if policy_type == 'prob':
+    if policy_mode == 'prob':
         return MLPGaussianAgent(env,hs=hs,activation=activation)
     
-    if policy_type == 'deterministic':
+    if policy_mode == 'deterministic':
 
         if (type(env.observation_space) == Discrete) and (type(env.action_space) == Discrete):
             return MLPTextAgent(env,hs=hs,activation=activation)
