@@ -601,7 +601,7 @@ def asgf_parallel(fun, x0, s0, scribe = RLScribe('data_adgs','unknown','unknown'
 
     return x,itr,fun_eval
 
-def asgf_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8]):
+def asgf_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8],policy_mode='deterministic'):
     """
     train an agent to solve the env_name task using
     dgs optimization
@@ -621,7 +621,7 @@ def asgf_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8]):
     J,d = make_rl_j_fn(env_name, hs=net_layers)
 
     # setup agent
-    agent,env,net = setup_agent_env(env_name,hs=net_layers)
+    agent,env,net = setup_agent_env(env_name,hs=net_layers,policy_type=policy_type)
 
     # initial guess of parameter vector
     w0 = get_net_param(net)
