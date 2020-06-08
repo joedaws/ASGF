@@ -262,21 +262,26 @@ def get_agent(env,hs=[12]*2,activation=None,policy_type='deterministic'):
     get correct agent based on the kind of action space
     """
     torch.manual_seed(0)
+   
+    if policy_type == 'prob':
+        return MLPGaussianAgent(env,hs=hs,activation=activation)
     
-    if (type(env.observation_space) == Discrete) and (type(env.action_space) == Discrete):
-        return MLPTextAgent(env,hs=hs,activation=activation)
+    if policy_type == 'deterministic':
 
-    elif env.action_space.__class__ == Box:
-        # continuous agent
-        #print('Making MLPContinuousAgent')
-        return MLPContinuousAgent(env,hs=hs,activation=activation)
+        if (type(env.observation_space) == Discrete) and (type(env.action_space) == Discrete):
+            return MLPTextAgent(env,hs=hs,activation=activation)
 
-    elif env.action_space.__class__ == Discrete:
-        # discrete agent
-        #print('Making MLPDiscreteAgent')
-        return MLPDiscreteAgent(env,hs=hs,activation=activation)
+        elif env.action_space.__class__ == Box:
+            # continuous agent
+            #print('Making MLPContinuousAgent')
+            return MLPContinuousAgent(env,hs=hs,activation=activation)
 
-    else:
-        raise ValueError('Cannot get Agent for invalid action space type.')
+        elif env.action_space.__class__ == Discrete:
+            # discrete agent
+            #print('Making MLPDiscreteAgent')
+            return MLPDiscreteAgent(env,hs=hs,activation=activation)
+
+        else:
+            raise ValueError('Cannot get Agent for invalid action space type.')
 
 
