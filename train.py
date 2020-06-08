@@ -52,7 +52,12 @@ if __name__ == "__main__":
                          type=lambda x: [int(item) for item in x.split(',')],
                          default=[8,8],
                          help='list of ints for hidden layer sizes')
-        
+    
+    # policy mode
+    parser.add_argument('--policy_mode',
+                         default='deterministic',
+                         help='mode by which agent chooses actions. either prob or deterministic.')
+
     # parse arguements
     args = parser.parse_args()
 
@@ -70,7 +75,7 @@ if __name__ == "__main__":
             print(f"Begin Training for {args.env_name} using {args.algo} with {size} workers")
         
         # train agent
-        asgf_parallel_train(rank,args.seed,args.env_name,maxiter,hidden_layers=args.hidden_sizes)
+        asgf_parallel_train(rank,args.seed,args.env_name,maxiter,hidden_layers=args.hidden_sizes,policy_mode=args.policy_mode)
 
     elif args.algo == 'dgs':
         if rank == 0:
@@ -78,4 +83,4 @@ if __name__ == "__main__":
             print(f"Begin Training for {args.env_name} using {args.algo} with {size} workers")
         
         # train agent
-        dgs_parallel_train(rank,args.seed,args.env_name,maxiter,hidden_layers=args.hidden_sizes)
+        dgs_parallel_train(rank,args.seed,args.env_name,maxiter,hidden_layers=args.hidden_sizes,policy_mode=args.policy_mode)
