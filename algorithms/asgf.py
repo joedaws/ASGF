@@ -621,7 +621,7 @@ def asgf_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8],policy
     J,d = make_rl_j_fn(env_name, hs=net_layers)
 
     # setup agent
-    agent,env,net = setup_agent_env(env_name,hs=net_layers,policy_type=policy_type)
+    agent,env,net = setup_agent_env(env_name,hs=net_layers,policy_mode=policy_mode)
 
     # initial guess of parameter vector
     w0 = get_net_param(net)
