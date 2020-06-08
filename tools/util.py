@@ -166,7 +166,7 @@ def rl_j_eval(agent,env,net,xi,eval_f):
 
     return r
 
-def setup_agent_env(env_name, max_steps=None, hs=[12]*2,policy_type='deterministic'):
+def setup_agent_env(env_name, max_steps=None, hs=[12]*2,policy_mode='deterministic'):
     """
     sets up environment given env_name string
 
@@ -185,7 +185,7 @@ def setup_agent_env(env_name, max_steps=None, hs=[12]*2,policy_type='determinist
     env = gym.make(env_name)
 
     # create agent
-    agent = get_agent(env,hs,policy_type=policy_type)
+    agent = get_agent(env,hs,policy_mode=policy_mode)
 
     # set network for actor
     net = agent.pi
