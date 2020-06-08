@@ -402,14 +402,14 @@ def dgs_parallel(fun,x0,
 
 
 
-def dgs_parallel_train(rank,exp_num,env_name,maxiter):
+def dgs_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8.8]):
     """
     train an agent to solve the env_name task using
     dgs optimization
     """
 
     # number of layers of the neural network
-    net_layers = [8,8]
+    net_layers = hidden_layers
 
     # set up scribe
     root_save = 'data/dgs'

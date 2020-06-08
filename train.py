@@ -70,7 +70,7 @@ if __name__ == "__main__":
             print(f"Begin Training for {args.env_name} using {args.algo} with {size} workers")
         
         # train agent
-        asgf_parallel_train(rank,args.seed,args.env_name,maxiter)
+        asgf_parallel_train(rank,args.seed,args.env_name,maxiter,hidden_layers=args.hidden_sizes)
 
     elif args.algo == 'dgs':
         if rank == 0:
@@ -78,4 +78,4 @@ if __name__ == "__main__":
             print(f"Begin Training for {args.env_name} using {args.algo} with {size} workers")
         
         # train agent
-        dgs_parallel_train(rank,args.seed,args.env_name,maxiter)
+        dgs_parallel_train(rank,args.seed,args.env_name,maxiter,hidden_layers=args.hidden_sizes)
