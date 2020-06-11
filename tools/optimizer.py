@@ -52,7 +52,4 @@ class AdamUpdater:
         # update x
         x -= lr * m_hat /(np.sqrt(v_hat) + self._epsilon)
 
-        # increment the time step
-        self._t += 1
-
 
