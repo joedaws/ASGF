@@ -18,7 +18,7 @@ NOTE: The creation of the asgf conda environment may take up to 5-7 minutes.
 ## Example usage for functional optimization
 
 ```
-python -m optimize --fun=ackley --dim=10 --algo=asgf --sim=1
+python -m optimize --fun=ackley --dim=10 --algo=asgf --sim=100
 ```
 * fun -- a string for the name of function to be minimizer. Implemented functions are in tools/function.py
 * dim -- input dimension of function
