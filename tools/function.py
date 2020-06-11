@@ -31,12 +31,6 @@ def target_function(function_name='ackley', dim=10):
 		x_dom = [[-5.12, 5.12]] * dim
 		x_min = [0] * dim
 
-	# Rosenbrock function
-	elif function_name == 'rosenbrock':
-		fun = lambda x: np.sum(100*(x[1:] - x[:-1]**2)**2 + (x[:-1] - 1)**2)
-		x_dom = [[-5, 10]] * dim
-		x_min = [1] * dim
-
 	# sphere function
 	elif function_name == 'sphere':
 		fun = lambda x: np.sum(x**2)
@@ -73,7 +67,6 @@ def target_function(function_name='ackley', dim=10):
 # randomly sample initial guess
 def initial_guess(x_dom):
 	dim = x_dom.shape[-1]
-	# #x0 = np.float128((x_dom[1] - x_dom[0]) * np.random.random(dim) + x_dom[0])
 	x0 = (x_dom[1] - x_dom[0]) * np.random.random(dim) + x_dom[0]
 	return x0
 

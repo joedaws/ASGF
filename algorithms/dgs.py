@@ -1,5 +1,4 @@
 from mpi4py import MPI
-from scipy.stats import ortho_group
 import numpy as np
 from tools.scribe import RLScribe, FScribe, hs_to_str
 from tools.optimizer import AdamUpdater
@@ -22,50 +21,63 @@ np.random.seed(0)
                 M   -- number of quadrature points to use
                 r, alpha, beta, gamma -- other hyperparameters
                 maxiter -- maximal number of iterations
-                gtol -- tolerance for the magnitude of the gradient
+                xtol -- tolerance for the change of x
 
         outputs:
                 x -- the minimizer
 '''
 # Directional Gaussian Smoothing
-def dgs(fun, x0, lr=.1, M=7, r=1.5, alpha=2.0, beta=.3, gamma=.01, maxiter=500, gtol=1e-06):
+def dgs(fun, x0, lr=.1, M=7, r=1.5, alpha=1.0, beta=.3, gamma=.01, \
+        maxiter=5000, xtol=1e-06, verbose=0):
 
     # initialize variables
-        x, dim = np.copy(x0), len(x0)
-        u = np.eye(dim)
-        s = r * np.ones(dim)
+    x, dim = np.copy(x0), len(x0)
+    u = np.eye(dim)
+    s = r * np.ones(dim)
+    # save the initial state
+    x_min = np.copy(x)
+    f_min = fun_x = fun(x)
+    itr_min, fun_eval, fun_eval_min = 0, 1, 1
 
-        for i in range(maxiter):
-            # initialize gradient
-                dg = np.zeros(dim)
+    for itr in range(maxiter):
+        # initialize gradient
+        dg = np.zeros(dim)
 
-                # estimate gradient along each direction
-                for d in range(dim):
-                    # define directional function
-                        g = lambda t : fun(x + t*u[d])
-                        # estimate smoothed gradient
-                        p, w = np.polynomial.hermite.hermgauss(M)
-                        g_val = np.array([g(p_i*s[d]) for p_i in p])
-                        dg[d] = np.sum(w*p * g_val) / (s[d] * np.sqrt(np.pi)/2)
+        # estimate gradient along each direction
+        for d in range(dim):
+            # define directional function
+            g = lambda t : fun(x + t*u[d])
+            # estimate smoothed gradient
+            p, w = np.polynomial.hermite.hermgauss(M)
+            g_val = np.array([g(p_i*s[d]) for p_i in p])
+            fun_eval += M-1
+            dg[d] = np.sum(w*p * g_val) / (s[d] * np.sqrt(np.pi)/2)
 
-                # assemble the gradient
-                df = np.matmul(dg, u)
-                # report the current state
-                # #print('dgs-iteration {:d}:\n  x = {}\n df = {}\n  s = {}'.format(i, x, df, s))
-                # step of gradient descent
-                x -= lr * df
-                print('iteration {:3d}: reward = {:6.2f}'.format(i+1, -fun(x)))
+        # assemble the gradient
+        df = np.matmul(dg, u)
+        # step of gradient descent
+        x -= lr * df
+        fun_x = fun(x)
+        fun_eval += 1
+        # save the best state so far
+        if fun_x < f_min:
+            x_min = np.copy(x)
+            f_min = fun_x
+            itr_min = itr
+            fun_eval_min = fun_eval
+        # report the current state
+        if verbose > 0:
+            print('dgs-iteration {:d}: f = {:.2e}'.format(itr+1, fun_x))
 
-                # update parameters
-                if np.linalg.norm(df) < gtol:
-                    break
-                elif np.linalg.norm(df) < gamma:
-                    #print('updating u and s')
-                    Du = np.random.random((dim,dim))
-                    u = np.eye(dim) + alpha * (Du - Du.T)
-                    s = (r + beta * (2*np.random.random(dim) - 1))
+        # update parameters
+        if np.linalg.norm(lr*df) < xtol:
+            break
+        elif np.linalg.norm(df) < gamma:
+            Du = np.random.random((dim,dim))
+            u = np.eye(dim) + alpha * (Du - Du.T)
+            s = (r + beta * (2*np.random.random(dim) - 1))
 
-        return x, i+1
+    return x, itr_min+1, fun_eval_min
 
 def get_split_sizes(data,size):
     """gets correct split sizes for size number of workers to split data"""
@@ -76,17 +88,17 @@ def get_split_sizes(data,size):
 
     return split_sizes
 
-def dgs_master(comm,L,rank,fun, x0, 
+def dgs_master(comm,L,rank,fun, x0,
         scribe=RLScribe('data_dgs','unknown','unkonwn'),
-        lr=.1, 
-        M=7, 
-        r=np.sqrt(2), 
-        alpha=2.0, 
-        beta=np.sqrt(2)/5, 
-        gamma=.01, 
-        maxiter=500, 
+        lr=.1,
+        M=7,
+        r=np.sqrt(2),
+        alpha=2.0,
+        beta=np.sqrt(2)/5,
+        gamma=.01,
+        maxiter=500,
         gtol=1e-06):
-    """Directional Gaussian Smoothing Parallel implementation for master 
+    """Directional Gaussian Smoothing Parallel implementation for master
         the following is the implementation of the directional gaussian smoothing
         optimization algorithm (https://arxiv.org/abs/2002.03001)
         the default values of hyperparameters are taken from the paper
@@ -114,7 +126,7 @@ def dgs_master(comm,L,rank,fun, x0,
     # initialize u and s
     u = np.eye(dim)
     s = r * np.ones(dim)
-    
+
     # get split sizes
     split_sizes_u = get_split_sizes(u,L)
     split_sizes_s = get_split_sizes(s,L)
@@ -126,10 +138,10 @@ def dgs_master(comm,L,rank,fun, x0,
     # number of vector elements to be recieved by each worker
     count_s = split_sizes_s
     displacements_s = np.insert(np.cumsum(count_s),0,0)[0:-1]
-    
+
     # master initializes gradient
     dg = np.zeros(dim)
-   
+
     # master initializes optimizer
     opt = AdamUpdater()
 
@@ -138,11 +150,11 @@ def dgs_master(comm,L,rank,fun, x0,
 
     # get exp_num
     exp_num = 1000*scribe.exp_num
-    
+
     # initialize flags
     break_flag = False
     update_flag = False
-    
+
     # broadcast necessary info to all workers
     worker_sizes_u = comm.bcast(split_sizes_u, root = 0)
     worker_sizes_s = comm.bcast(split_sizes_s, root = 0)
@@ -162,13 +174,13 @@ def dgs_master(comm,L,rank,fun, x0,
 
     # wait for everyone
     comm.Barrier()
-    
+
     # begin iterations for everyone
     for i in range(maxiter):
-        
+
         # broadcast new x
         x = comm.bcast(x,root=0)
-        
+
         #print(f"master before update on it {i} has first {x[0]} middle {x[int(len(x)/2)]} last {x[-1]}")
 
         # scatter u and s
@@ -192,10 +204,10 @@ def dgs_master(comm,L,rank,fun, x0,
         # master collects dg
         comm.Gatherv(worker_chunk_dg,[dg,count_s,displacements_s,MPI.DOUBLE], root = 0)
 
-        # master updates df 
+        # master updates df
         # assemble the gradient
         df = np.matmul(dg, u)
-        
+
         # step of gradient descent
         #x -= lr * df
         opt.step(x,lr,df)
@@ -224,7 +236,6 @@ def dgs_master(comm,L,rank,fun, x0,
             Du = np.random.random((dim,dim))
             u = np.eye(dim) + alpha * (Du - Du.T)
             s = (r + beta * (2*np.random.random(dim) - 1))
-            #u = ortho_group.rvs(dim)
             update_flag = True
 
         # broadcast the flags
@@ -239,14 +250,14 @@ def dgs_master(comm,L,rank,fun, x0,
     # master process returns values
     return x, i+1
 
-def dgs_worker(comm,L,rank,fun, x0, 
-               lr=.1, 
-               M=7, 
-               r=1.5, 
-               alpha=2.0, 
-               beta=.3, 
-               gamma=.01, 
-               maxiter=500, 
+def dgs_worker(comm,L,rank,fun, x0,
+               lr=.1,
+               M=7,
+               r=1.5,
+               alpha=2.0,
+               beta=.3,
+               gamma=.01,
+               maxiter=500,
                gtol=1e-06):
     """Directional Gaussian Smoothing Parallel implementation for workers
         the following is the implementation of the directional gaussian smoothing
@@ -287,7 +298,7 @@ def dgs_worker(comm,L,rank,fun, x0,
     # initialize flags
     break_flag = False
     update_flag = False
-    
+
     # broadcast necessary info to all workers
     worker_sizes_u = comm.bcast(split_sizes_u, root = 0)
     worker_sizes_s = comm.bcast(split_sizes_s, root = 0)
@@ -296,7 +307,7 @@ def dgs_worker(comm,L,rank,fun, x0,
     displacements_u = comm.bcast(displacements_u, root = 0)
     displacements_s = comm.bcast(displacements_s, root = 0)
     exp_num = comm.bcast(exp_num,root=0)
-    
+
     # create worker_chunks
     worker_chunk_u = np.zeros((int(worker_sizes_u[rank]),dim))
     worker_chunk_s = np.zeros(int(worker_sizes_s[rank]))
@@ -310,11 +321,11 @@ def dgs_worker(comm,L,rank,fun, x0,
 
     # begin iterations for everyone
     for i in range(maxiter):
-        
+
         # broadcast new x
         x = comm.bcast(x,root=0)
         #print(f"{rank} on it {i} has first {x[0]} middle {x[int(len(x)/2)]} last {x[-1]}")
-        
+
         # scatter u and s
         if update_flag == True:
             #print(f"worker {rank} on it {i} is updating")
@@ -336,7 +347,7 @@ def dgs_worker(comm,L,rank,fun, x0,
 
         # master collects dg
         comm.Gatherv(worker_chunk_dg,[dg,count_s,displacements_s,MPI.DOUBLE], root = 0)
-        
+
         # broadcast the flags
         break_flag = comm.bcast(break_flag,root=0)
         update_flag = comm.bcast(update_flag,root=0)
@@ -392,7 +403,7 @@ def dgs_parallel(fun,x0,
               '  x_min = {}\n  f_min = {}'.format(x_dgs[:10], fun(x_dgs,itr_dgs)), sep='\n')
     else:
         dgs_worker(comm,L,rank,fun,x0,lr,M,r,alpha,beta,gamma,maxiter,gtol)
-    
+
     x_dgs = comm.bcast(x_dgs,root=0)
     itr_dgs = comm.bcast(itr_dgs,root=0)
     #MPI.Finalize()
@@ -423,7 +434,7 @@ def dgs_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8.8],policy_
 
     # setup agent
     agent,env,net = setup_agent_env(env_name,hs=net_layers,policy_mode=policy_mode)
-    
+
     # initial guess of parameter vector
     #np.random.seed(0)
     #w0 = np.random.randn(d)/10

@@ -1,7 +1,6 @@
 import time
 import numpy as np
 from mpi4py import MPI
-from tools.function import target_function, initial_guess
 from tools.scribe import RLScribe, FScribe, hs_to_str
 from tools.optimizer import AdamUpdater
 from tools.util import make_rl_j_fn, setup_agent_env, update_net_param, get_net_param
@@ -83,7 +82,7 @@ def asgf(fun, x0, s0, s_rate=.9, m_min=5, m_max=21, qtol=.1,\
 			A_grad=.1, B_grad=.9, A_dec=.95, A_inc=1.02, B_dec=.98, B_inc=1.01,\
 			L_avg=1, L_lmb=.9, s_min=1e-03, s_max=None, lr_min=1e-03, lr_max=1e+03,\
 			restart=True, num_res=2, res_mult=10, res_div=10, fun_req=-np.inf,\
-			maxiter=1000, xtol=1e-06, verbose=0):
+			maxiter=5000, xtol=1e-06, verbose=0):
 
 	# save the input arguments
 	asgf_args = locals()
@@ -573,7 +572,7 @@ def asgf_parallel(fun, x0, s0, scribe = RLScribe('data_adgs','unknown','unknown'
                   restart=False, num_res=2, res_mult=10, res_div=10, fun_req=-np.inf,
                   maxiter=1000, xtol=1e-06, verbose=3, optimizer='grad'):
     """
-    function which gives each worker eitehr master or worker 
+    function which gives each worker eitehr master or worker
     version of asgf algorithm
     """
     comm = MPI.COMM_WORLD
