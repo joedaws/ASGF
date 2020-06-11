@@ -1,5 +1,5 @@
 """
-Usefule functions for testing rl with gym environments
+Useful functions for testing rl with gym environments
 """
 import torch
 import torch.nn as nn
@@ -12,7 +12,7 @@ from tools.agent import get_agent
 def count_vars(module):
     return sum([np.prod(p.shape) for p in module.parameters()])
 
-def simulate_reward(agent, env, itr, max_steps=200, scale=1, num_eps=1):
+def simulate_reward(agent, env, itr, max_steps=200, scale=1, num_eps=10):
     """
     Inputs:
         agent     -- MLPAgent

@@ -253,7 +253,7 @@ def asgf_master(comm,L,rank,fun, x0, s0, scribe = RLScribe('data_adgs','unknown'
         opt = AdamUpdater()
 
     # Master: initialize important variables
-    u = generate_directions(dim)
+    u = np.eye(dim)
     s = np.float(s0)
 
     # Master: set up variables for adaptivitiy
@@ -338,13 +338,11 @@ def asgf_master(comm,L,rank,fun, x0, s0, scribe = RLScribe('data_adgs','unknown'
         df = np.matmul(dg, u)
 
         # average Lipschitz constant along the main direction
-        #L_avg = (1 - L_lmb) * L_loc[0] + L_lmb * L_avg
-        #L_avg = (1 - L_lmb) * np.mean(L_loc) + L_lmb * L_avg
         L_avg = (1 - L_lmb) * np.amax(L_loc) + L_lmb * L_avg
 
         # select learning rate
         #lr = np.clip(10 * s/L_avg, lr_min, lr_max)
-        lr = np.clip(s/L_avg, lr_min, lr_max)
+        lr = np.clip(10 * s/L_avg, lr_min, lr_max)
 
         # TODO: do we need ADAM updates or not?
         # perform step
@@ -388,11 +386,6 @@ def asgf_master(comm,L,rank,fun, x0, s0, scribe = RLScribe('data_adgs','unknown'
                 s_rate *= s_rate
                 fun_req = -np.inf
 
-        # Master: check termination condition
-        dx_norm = np.linalg.norm(lr*df)
-        #if dx_norm < xtol:
-            #break_flag = True
-
         # TODO: may want to add these steps back in
         # check convergence to a local minimum
         if restart*(num_res > -1) and s < s_min*res_mult:
@@ -428,9 +421,6 @@ def asgf_master(comm,L,rank,fun, x0, s0, scribe = RLScribe('data_adgs','unknown'
         # TODO make sure this is done
         # Master: updates u and s
         else:
-            # update directions
-            u = generate_directions(dim, df)
-
             # adjust smoothing parameter
             s_norm = np.amax(np.abs(dg) / L_loc)
             if s_norm < A_grad:
@@ -630,10 +620,9 @@ def asgf_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8],policy
         print('iteration   0: reward = {:6.2f}'.format(J(w0,1)))
 
     # run dgs parallel implementation
-    asgf_args = dict(s0=3, s_rate=1.0, m_min=5, m_max=5, L_avg=10, L_lmb=.9, \
+    asgf_args = dict(s0=3, s_rate=1.0, m_min=5, m_max=5, L_avg=1000, L_lmb=.9, \
                      s_min=.01, s_max=100, lr_min=.01, lr_max=1, \
                      maxiter=maxiter, xtol=1e-06, verbose=3, optimizer='adam')
-    # 'grad' x -= lr*df and 'adam' opt.(x,lr,df)
     _, itr, fun_val = asgf_parallel(lambda w,i: -J(w,i), w0, scribe=scribe, **asgf_args)
 
     print(f"Finished training in {itr} iterations with final fun_val as {fun_val}")
