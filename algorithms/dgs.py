@@ -77,7 +77,7 @@ def dgs(fun, x0, lr=.1, M=7, r=1.5, alpha=1.0, beta=.3, gamma=.01, \
             u = np.eye(dim) + alpha * (Du - Du.T)
             s = (r + beta * (2*np.random.random(dim) - 1))
 
-    return x, itr_min+1, fun_eval_min
+    return x_min, itr_min+1, fun_eval_min
 
 def get_split_sizes(data,size):
     """gets correct split sizes for size number of workers to split data"""
