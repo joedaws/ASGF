@@ -6,3 +6,5 @@ __pycache__
 *.csv
 *.swp
 outcmaes/
+test/
+mlruns/
