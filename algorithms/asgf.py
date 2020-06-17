@@ -5,6 +5,7 @@ from mpi4py import MPI
 from tools.scribe import RLScribe, FScribe, hs_to_str
 from tools.optimizer import AdamUpdater
 from tools.util import make_rl_j_fn, setup_agent_env, update_net_param, get_net_param
+from algorithms.parameters import init_asgf
 
 # set print options
 np.set_printoptions(linewidth=100, suppress=True, formatter={'float':'{: 0.4f}'.format})
@@ -31,8 +32,8 @@ def reset_params(initial_args,len_x0):
 def gh_quad_aux(g, s, args):
     # TODO need to adjust args --> SimpleNamespace
     # initialize variables
-    m_min = np.int(args['m_min'])
-    xtol = np.float(args['xtol'])
+    m_min = args.m_min
+    xtol = args.xtol
     # Gauss-Hermite quadrature
     p, w = np.polynomial.hermite.hermgauss(m_min)
     g_val = np.array([g(p_i*s) for p_i in p])
@@ -45,10 +46,10 @@ def gh_quad_aux(g, s, args):
 def gh_quad_main(g, s, args):
     # TODO need to adjust args --> SimpleNamespace
     # initialize variables
-    m_min = np.int(args['m_min'])
-    m_max = np.int(args['m_max'])
-    qtol = np.float(args['qtol'])
-    xtol = np.float(args['xtol'])
+    m_min = args.m_min
+    m_max = args.m_max
+    qtol = args.qtol
+    xtol = args.xtol
     dg_quad = np.array([np.inf])
     g_vals, p_vals = np.array([]), np.array([])
     fun_eval = 0
@@ -88,7 +89,7 @@ def asgf(fun, x0, s0, s_rate=.9, m_min=5, m_max=21, qtol=.1,\
             restart=True, num_res=2, res_mult=10, res_div=10, fun_req=-np.inf,\
             maxiter=5000, xtol=1e-06, verbose=0):
 """
-def asgf(fun,x0,s0,param):
+def asgf(fun,x0,s0,param=init_asgf()):
     """
     Inputs:
         fun -- function to be optimized
@@ -191,59 +192,59 @@ def asgf(fun,x0,s0,param):
                 break
         # check convergence to a local minimum
         elif restart*(num_res > -1) and s < param.s_min*param.res_mult:
-                # reset parameters
-                u, s, L_avg, A_grad, B_grad = reset_params(param,dim)
-                if num_res > 0:
-                        if verbose > 1:
-                                print('iteration {:d}: reset the parameters'.format(itr+1))
+            # reset parameters
+            u, s, L_avg, A_grad, B_grad = reset_params(param,dim)
+            if num_res > 0:
+                if verbose > 1:
+                    print('iteration {:d}: reset the parameters'.format(itr+1))
                 else:
-                        # restart from the best state
-                        x = np.copy(x_min)
-                        fun_x = f_min
-                        s = s_res
-                        if verbose > 1:
-                                print('iteration {:d}: restarting from the state '\
-                                        'fun(x) = {:.2e}, s = {:.2e}'.format(itr+1, fun_x, s))
+                    # restart from the best state
+                    x = np.copy(x_min)
+                    fun_x = f_min
+                    s = s_res
+                    if verbose > 1:
+                        print('iteration {:d}: restarting from the state '
+                              'fun(x) = {:.2e}, s = {:.2e}'.format(itr+1, fun_x, s))
                 num_res -= 1
+        
         # check divergence
-        elif restart and s > param.s_max/param.res_div:
-                # reset parameters
-                u, _, L_avg, A_grad, B_grad = reset_params(param,dim)
-                # restart from the best state
-                if param.verbose > 1:
-                        print('iteration {:d}: restarting from the state fun(x) = {:.2e}, '\
-                                's = {:.2e}\nsince the current value of s = {:.2e} is too large'\
-                                .format(itr+1, f_min, s_res, s))
+        elif restart and s > s_max/param.res_div:
+            # reset parameters
+            u, _, L_avg, A_grad, B_grad = reset_params(param,dim)
+            # restart from the best state
+            if param.verbose > 1:
+                print('iteration {:d}: restarting from the state fun(x) = {:.2e}, '
+                      's = {:.2e}\nsince the current value of s = {:.2e} is too large'
+                                .format(itr+1, f_min, s_res, s) )
                 x = np.copy(x_min)
                 fun_x = f_min
                 s = s_res
         # update parameters for next iteration
         else:
-                # update directions
-                u = generate_directions(dim, df)
-                # adjust smoothing parameter
-                s_norm = np.amax(np.abs(dg) / L_loc)
-                if s_norm < A_grad:
-                        s *= s_rate
-                        A_grad *= A_dec
-                        s_status = '-'
-                elif s_norm > B_grad:
-                        s /= s_rate
-                        B_grad *= B_inc
-                        s_status = '+'
-                else:
-                        A_grad *= A_inc
-                        B_grad *= B_dec
-                        s_status = '='
-                s = np.clip(s, s_min, s_max)
+            # update directions
+            u = generate_directions(dim, df)
+            # adjust smoothing parameter
+            s_norm = np.amax(np.abs(dg) / L_loc)
+            if s_norm < A_grad:
+                s *= s_rate
+                A_grad *= param.A_dec
+                s_status = '-'
+            elif s_norm > B_grad:
+                s /= s_rate
+                B_grad *= param.B_inc
+                s_status = '+'
+            else:
+                A_grad *= param.A_inc
+                B_grad *= param.B_dec
+                s_status = '='
+            s = np.clip(s, param.s_min, s_max)
 
-# report the result of optimization
-if verbose > 0:
-        print('asgf-optimization terminated after {:d} iterations and {:d} '\
-                'function evaluations: f_min = {:.2e}'.format(itr+1, fun_eval, f_min))
+        # report the result of optimization
+        if param.verbose > 0:
+            print('asgf-optimization terminated after {:d} iterations and {:d} '\
+                  'function evaluations: f_min = {:.2e}'.format(itr+1, fun_eval, f_min))
 
-return x_min, itr+1, fun_eval
-
+    return x_min, itr+1, fun_eval
 
 def asgf_get_split_sizes(data,size):
     """gets correct split sizes for size number of workers to split data

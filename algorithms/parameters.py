@@ -1,5 +1,5 @@
 """
-    file: config.py
+    file: parameters.py
 """
 from types import SimpleNamespace
 
@@ -12,6 +12,7 @@ def init_asgf():
     asgf_param = {
                     's_rate':0.9,
                     'm_min':5,
+                    'm_max':21,
                     'qtol':.1,
                     'A_grad':.1, 
                     'B_grad':.9, 
