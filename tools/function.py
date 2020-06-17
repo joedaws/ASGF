@@ -1,5 +1,7 @@
 import numpy as np
 
+
+
 ''' setup benchmark functions '''
 def target_function(function_name='ackley', dim=10):
 
@@ -62,6 +64,30 @@ def target_function(function_name='ackley', dim=10):
 		raise SystemExit('function {:s} is not defined...'.format(function_name))
 
 	return fun, np.array(x_min), np.array(x_dom).T
+
+def stochastic_target_function(function_name='ackley', dim=10, mu=0, sigma=0.1):
+    """ 
+    Inputs:
+        function_name -- name of function
+        dim           -- dimension of function
+        mu            -- mean of additive noise
+        sigma         -- standard devation of additive noise
+    
+    Outputs:
+        stochastic_fun -- stochastic version of function
+        x_min          -- value which attains true minimum of function
+        x_dom          -- domain of function
+    """
+    
+    # get original function
+    fun,x_min,x_dom = target_function(function_name,dim)
+
+    # create additive noise function
+    #eta = lambda s: np.random.default_rng(s).normal(mu,sigma,1)
+
+    stochastic_fun = lambda x: fun(x) + np.random.normal(mu,sigma,1)[0]
+
+    return stochastic_fun, x_min, x_dom
 
 
 # randomly sample initial guess

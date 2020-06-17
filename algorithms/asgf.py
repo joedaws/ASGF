@@ -75,8 +75,6 @@ def gh_quad_main(g, s, args):
     L = max(xtol, np.amax(np.abs(g_val[1:] - g_val[:-1]) / (p[1:] - p[:-1]) / s))
     return dg_quad[-1], L, fun_eval
 
-
-
 '''
     adaptive directional gaussian smoothing v2
     this version is aimed to remove hyperparameter selection
@@ -117,6 +115,7 @@ def asgf(fun,x0,s0,param=init_asgf()):
     """
     # unpack some of the parameters
     L_avg = np.copy(param.L_avg)
+    L_avg = np.copy(param['L_avg'])
     A_grad = np.copy(param.A_grad)
     B_grad = np.copy(param.B_grad)
     fun_req = np.copy(param.fun_req)

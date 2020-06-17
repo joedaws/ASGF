@@ -41,7 +41,7 @@ if __name__ == "__main__":
                          help='name of the benchmark function')
     # function dimensionality
     parser.add_argument('--dim',\
-                         default='2',\
+                         default='10',\
                          help='dimensionality of the benchmark function')
     # algorihtm
     parser.add_argument('--algo',\
