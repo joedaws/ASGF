@@ -10,11 +10,16 @@
         - nelder-mead
         - bfgs
 """
+import sys
 import argparse
 import numpy as np
+from mpi4py import MPI
 from tools.function import target_function, stochastic_target_function, initial_guess
-from algorithms.asgf import asgf
+from tools.mpi_util import mpi_fork
+from tools.scribe import FScribe
+from algorithms.asgf import asgf, asgf_parallel_main, asgf_parallel_aux
 from algorithms.dgs import dgs
+from algorithms.parameters import init_asgf
 import cma
 from scipy.optimize import minimize
 
@@ -67,11 +72,70 @@ if __name__ == "__main__":
                          default=0.05,
                          help='standard devation of the additive noise')
 
+    # number of processes
+    parser.add_argument('--nprocs',
+                         type=int,
+                         default=1,
+                         help='number of parallel processes to use')
+
     # parse arguements
     args = parser.parse_args()
 
-    ''' run optimization tests '''
-    if args.algo == 'asgf':
+    # fork processes if nprocs > 1 and kill the original
+    if "parent" == mpi_fork(args.nprocs): sys.exit()
+
+    if args.algo == 'asgf_parallel':
+        # MPI related variables
+        comm = MPI.COMM_WORLD
+        L = comm.Get_size()
+        rank = comm.Get_rank()
+
+        # set up parameters
+        param = init_asgf()
+       
+        # check number of processes
+        if args.nprocs <= 1:
+            raise ValueError('Number of processes must be more than 1')
+        
+        # display the problem setup
+        dim = int(args.dim)
+        sim_num = int(args.sim)
+        if rank == 0:
+            print('Optimizing {:d}d-{:s} using {:s} ({:d} simulations)'.\
+            format(dim, args.fun, args.algo, sim_num))
+        # setup optimization problem
+        conv_sim, itr_num, fev_num = 0, 0, 0
+        fun, x_min, x_dom = get_function(args.fun, dim, args.process, args.mean, args.std)
+        s0 = np.linalg.norm(x_dom[1] - x_dom[0]) / 10
+        # run optimization tests
+        for k in range(sim_num):
+            np.random.seed(k)
+            x0 = initial_guess(x_dom)
+            # main process
+            if rank == 0:
+                scribe = FScribe('data/asgf',args.algo)
+                x, itr_k, fev_k = asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param)
+                print('{:d}/{:d}  {:d}d-{:s}:  '.format(k+1, sim_num, dim, args.fun), end='')
+                print(f'f = {fun(x):1.5e},  {itr_k:d} iterations,  {fev_k:d} evaluations')
+                # record stats on successful simulations
+                f_delta = np.abs((fun(x) - fun(x_min)) / (fun(x0) - fun(x)))
+                if f_delta < 1e-04:
+                    conv_sim += 1
+                    itr_num += itr_k
+                    fev_num += fev_k
+                conv_num = np.nan if conv_sim == 0 else conv_sim
+
+            # aux processes 
+            else:
+                asgf_parallel_aux(comm,L,rank,fun,x0,s0,param)
+                
+        if rank == 0:
+            # report statistics
+            print('\naverage number of iterations / evaluations / convergence rate for {:s}:'.format(args.algo))
+            print('{:d}d-{:s} --- {:.0f} / {:.0f} / {:6.2f}%'.\
+                  format(dim, args.fun, itr_num/conv_num, fev_num/conv_num, 100*conv_sim/sim_num))
+        
+    elif args.algo == 'asgf':
         # display the problem setup
         dim = int(args.dim)
         sim_num = int(args.sim)
