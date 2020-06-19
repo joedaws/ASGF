@@ -153,10 +153,8 @@ def asgf(fun,x0,s0,param=init_asgf()):
             # update number of function evaluations
             fun_eval += fun_eval_d
 
-        #print('dg')
-        #print(dg)
-        #print('L_loc')
-        #print(L_loc)
+        #print(f'dg {dg}')
+        #print(f'L_loc {L_loc}')
         
         #print(f"fun eval this itr {fun_eval}")
         
@@ -319,7 +317,8 @@ def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
 
     # initialize gradient and Lipschitz constants
     dg, L_loc = np.zeros(dim), np.zeros(dim)
-    f_min = fun_x = fun(x)
+    #f_min = fun_x = fun(x)
+    f_min = fun_x = fun(x,0)
     s_res = s0
 
     # main: initialize main function eval counter
@@ -370,8 +369,8 @@ def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
         # estimate derivative in every direction
         for d in range(chunk_u.shape[0]):
             # define directional function
-            #print(f"process {rank} dim {d} chunk_u {chunk_u[d]}")
-            g = lambda t : fun(x + t*chunk_u[d])
+            #print(f"u[{rank+d}] {chunk_u[d]}")
+            g = lambda t : fun(x + t*chunk_u[d],itr+1)
             # main takes care of main direction
             chunk_dg[d], chunk_L_loc[d], fun_eval_d = gh_quad_main(g, s, param)
             #print(f"aux {rank} and dim {rank+d} dg {chunk_dg[d]}")
@@ -386,10 +385,8 @@ def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
         # Reduce aux_fun_eval and update total counts so far
         comm.Reduce([aux_fun_eval,1,MPI.INT],[main_collect,1,MPI.INT],MPI.SUM,root=0)
  
-        #print('dg')
-        #print(dg)
-        #print('L_loc')
-        #print(L_loc)       
+        #print(f'dg {dg}')
+        #print(f'L_loc {L_loc}')
         
         fun_eval += main_collect
         #print(f"fun eval this itr {fun_eval}")
@@ -413,7 +410,7 @@ def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
         #print(f"parallel: itr {itr} \n x {x} \n df {df} \n lr {lr}")
         
         # evaluate function
-        fun_x = fun(x)
+        fun_x = fun(x,itr+1)
         fun_eval += 1
 
         # scribe records data
@@ -468,7 +465,6 @@ def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
         elif restart and s > s_max/param.res_div:
             # reset parameters
             u, _, L_avg, A_grad, B_grad = reset_params(param,dim)
-            u = np.copy(u.T)
             # restart from the best state
             if param.verbose > 1:
                 print('iteration {:d}: restarting from the state fun(x) = {:7.2f}, '\
@@ -481,8 +477,7 @@ def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
         # update parameters for next iteration
         else:
             # update directions 
-            u = generate_directions(dim, df).T
-
+            u = generate_directions(dim, df)
             # adjust smoothing parameter
             s_norm = np.amax(np.abs(dg) / L_loc)
             if s_norm < A_grad:
@@ -586,10 +581,11 @@ def asgf_parallel_aux(comm,L,rank,fun,x0,s0,param=init_asgf()):
         # estimate derivative in every direction
         for d in range(chunk_u.shape[0]):
             # define directional function
-            g = lambda t : fun(x + t*chunk_u[d])
+            #print(f"u[{rank+d}] {chunk_u[d]}")
+            g = lambda t : fun(x + t*chunk_u[d],itr+1)
             # aux directions 
             chunk_dg[d], chunk_L_loc[d], aux_fun_eval_d = gh_quad_aux(g, s, param)
-            #print(f"aux {rank} and dim {rank+d} dg {chunk_dg[d]}")
+            #print(f"dg[{rank+d}] {chunk_dg[d]}")
             # update number of function evaluations
             aux_fun_eval += int(aux_fun_eval_d)
 

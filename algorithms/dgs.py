@@ -124,7 +124,10 @@ def dgs_master(comm,L,rank,fun, x0,
     # master process initializes variables
     # splits and prepares data for scatter
     # initialize u and s
-    u = np.eye(dim)
+    #u = np.eye(dim)
+    u = np.random.rand(dim,dim)
+    print(f'the main process just made this great u \n {u}')
+
     s = r * np.ones(dim)
 
     # get split sizes
@@ -172,6 +175,8 @@ def dgs_master(comm,L,rank,fun, x0,
     comm.Scatterv([u,count_u,displacements_u,MPI.DOUBLE], worker_chunk_u,root=0)
     comm.Scatterv([s,count_s,displacements_s,MPI.DOUBLE], worker_chunk_s,root=0)
 
+    print(f'{rank} {worker_chunk_u}')
+    
     # wait for everyone
     comm.Barrier()
 
@@ -316,6 +321,8 @@ def dgs_worker(comm,L,rank,fun, x0,
     comm.Scatterv([u,count_u,displacements_u,MPI.DOUBLE], worker_chunk_u,root=0)
     comm.Scatterv([s,count_s,displacements_s,MPI.DOUBLE], worker_chunk_s,root=0)
 
+    print(f'{rank} {worker_chunk_u}')
+
     # wait for everyone
     comm.Barrier()
 
@@ -445,6 +452,6 @@ def dgs_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8.8],policy_
         print('iteration   0: reward = {:6.2f}'.format(J(w0,1)))
 
     # run dgs parallel implementation
-    w, itr = dgs_parallel(lambda w,i: -J(w,i), w0, scribe=scribe,maxiter=maxiter)
+    w, itr = dgs_parallel(lambda w,i: -J(w,i), w0, scribe=scribe,maxiter=maxiter,gamma=0)
 
 
