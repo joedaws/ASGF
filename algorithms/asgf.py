@@ -18,7 +18,8 @@ def generate_directions(dim, vec=None):
         u = np.concatenate((vec.reshape((-1,1)), \
                             np.random.randn(dim,dim-1)), axis=1)
     u /= np.linalg.norm(u, axis=0)
-    u = np.linalg.qr(u)[0].T
+    #u = np.linalg.qr(u)[0].T
+    u = np.linalg.qr(u)[0].T.copy() # so that the new matrix is c-ordered
     return u
 
 def reset_params(initial_args,len_x0):
@@ -35,8 +36,8 @@ def reset_params(initial_args,len_x0):
         B -- initial B_grad
     """
     u = generate_directions(len_x0)
-    s = initial_args.s
-    L_avg = initial_args.L_avg
+    s = initial_args.s0
+    L = initial_args.L_avg
     A = initial_args.A_grad
     B = initial_args.B_grad
     return u, s, L, A, B
@@ -119,6 +120,7 @@ def asgf(fun,x0,s0,param=init_asgf()):
     s_rate = np.copy(param.s_rate)
     num_res = np.copy(param.num_res)
     restart = np.copy(param.restart)
+    param.s0 = s0
 
     # initialize variables
     x, dim = np.copy(x0), len(x0)
@@ -137,8 +139,10 @@ def asgf(fun,x0,s0,param=init_asgf()):
         # initialize gradient and Lipschitz constants
         dg, L_loc = np.zeros(dim), np.zeros(dim)
         # estimate derivative in every direction
+        #print(u)
         for d in range(dim):
             # define directional function
+            #print(f"u[{d}] is {u[d]}")
             g = lambda t : fun(x + t*u[d])
             if d == 0:
                 # main direction
@@ -149,6 +153,13 @@ def asgf(fun,x0,s0,param=init_asgf()):
             # update number of function evaluations
             fun_eval += fun_eval_d
 
+        #print('dg')
+        #print(dg)
+        #print('L_loc')
+        #print(L_loc)
+        
+        #print(f"fun eval this itr {fun_eval}")
+        
         # assemble the gradient
         df = np.matmul(dg, u)
         # average Lipschitz constant along the main direction
@@ -164,6 +175,9 @@ def asgf(fun,x0,s0,param=init_asgf()):
             print('  x = {}\n df = {}'.format(x[:10], df[:10]))
         # perform step of gradient descent
         x -= lr * df
+        
+        #print(f"serial: itr {itr} \n x {x} \n df {df} \n lr {lr}")
+        
         fun_x = fun(x)
         fun_eval += 1
 
@@ -259,15 +273,6 @@ def asgf_get_split_sizes(data,size):
 
     return split_sizes
 
-"""
-def asgf_parallel_main(comm,L,rank,fun, x0, s0, scribe = RLScribe('data_adgs','unknown','unknown'),
-                s_rate=.9, m_min=5, m_max=21, qtol=.1,\
-                A_grad=.1, B_grad=.9, A_dec=.95, A_inc=1.02, B_dec=.98, B_inc=1.01,\
-                L_avg=1, L_lmb=.9, s_min=1e-03, s_max=None, lr_min=1e-03, lr_max=1e+03,\
-                restart=True, num_res=2, res_mult=10, res_div=10, fun_req=-np.inf,\
-                maxiter=1000, xtol=1e-06, verbose=0, optimizer='adam'):
-"""
-
 def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
     """
     Inputs:
@@ -288,6 +293,7 @@ def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
     s_rate = np.copy(param.s_rate)
     num_res = np.copy(param.num_res)
     restart = np.copy(param.restart)
+    param.s0 = s0
 
     # Everyone: initialize variables
     x, dim = np.copy(x0), len(x0)
@@ -298,11 +304,14 @@ def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
         opt = AdamUpdater()
 
     # main: initialize important variables
-    u = np.eye(dim)
+    #u = np.eye(dim)
+    u = generate_directions(dim)
+    #print(f"main has generated u \n")
+    #print(u)
     s = np.float(s0)
 
     # main: set up variables for adaptivitiy
-    s_max = np.float(1000*s0) if s_max is None else s_max
+    s_max = np.float(1000*s0) if param.s_max is None else param.s_max
     s_status = '='
 
     # main: save the initial state
@@ -349,6 +358,7 @@ def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
         s = comm.bcast(s,root=0)
 
         comm.Barrier()
+        #print(u)
 
         # scatter u
         comm.Scatterv([u,count_mat,displacements_mat,MPI.DOUBLE],chunk_u,root=0)
@@ -360,9 +370,11 @@ def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
         # estimate derivative in every direction
         for d in range(chunk_u.shape[0]):
             # define directional function
+            #print(f"process {rank} dim {d} chunk_u {chunk_u[d]}")
             g = lambda t : fun(x + t*chunk_u[d])
             # main takes care of main direction
             chunk_dg[d], chunk_L_loc[d], fun_eval_d = gh_quad_main(g, s, param)
+            #print(f"aux {rank} and dim {rank+d} dg {chunk_dg[d]}")
             # update number of function evaluations
             aux_fun_eval += int(fun_eval_d)
 
@@ -370,10 +382,17 @@ def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
         comm.Gatherv(chunk_dg,[dg,count_vec,displacements_vec,MPI.DOUBLE],root=0)
         comm.Gatherv(chunk_L_loc,[L_loc,count_vec,displacements_vec,MPI.DOUBLE],root=0)
 
+
         # Reduce aux_fun_eval and update total counts so far
         comm.Reduce([aux_fun_eval,1,MPI.INT],[main_collect,1,MPI.INT],MPI.SUM,root=0)
+ 
+        #print('dg')
+        #print(dg)
+        #print('L_loc')
+        #print(L_loc)       
         
         fun_eval += main_collect
+        #print(f"fun eval this itr {fun_eval}")
 
         # assemble the gradient
         df = np.matmul(dg, u)
@@ -382,15 +401,17 @@ def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
         L_avg = (1 - param.L_lmb) * np.amax(L_loc) + param.L_lmb * L_avg
 
         # select learning rate
-        #lr = np.clip(s/L_avg, lr_min, lr_max)
-        lr = np.clip(10 * s/L_avg, param.lr_min, param.lr_max)
+        lr = np.clip(s/L_avg, param.lr_min, param.lr_max)
+        #lr = np.clip(10 * s/L_avg, param.lr_min, param.lr_max)
 
         # perform step
         if param.optimizer == 'grad':
             x -= lr * df
         elif param.optimizer == 'adam':
             opt.step(x,lr,df)
-
+    
+        #print(f"parallel: itr {itr} \n x {x} \n df {df} \n lr {lr}")
+        
         # evaluate function
         fun_x = fun(x)
         fun_eval += 1
@@ -429,6 +450,7 @@ def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
         if restart*(num_res > -1) and s < param.s_min*param.res_mult:
             # reset parameters
             u, s, L_avg, A_grad, B_grad = reset_params(param,dim)
+            u = np.copy(u.T)
             if num_res > 0:
                 if param.verbose > 1:
                     print('iteration {:d}: reset the parameters'.format(itr+1))
@@ -443,9 +465,10 @@ def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
             num_res -= 1
 
         # check divergence
-        elif restart and s > param.s_max/param.res_div:
+        elif restart and s > s_max/param.res_div:
             # reset parameters
             u, _, L_avg, A_grad, B_grad = reset_params(param,dim)
+            u = np.copy(u.T)
             # restart from the best state
             if param.verbose > 1:
                 print('iteration {:d}: restarting from the state fun(x) = {:7.2f}, '\
@@ -457,6 +480,9 @@ def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
 
         # update parameters for next iteration
         else:
+            # update directions 
+            u = generate_directions(dim, df).T
+
             # adjust smoothing parameter
             s_norm = np.amax(np.abs(dg) / L_loc)
             if s_norm < A_grad:
@@ -551,6 +577,7 @@ def asgf_parallel_aux(comm,L,rank,fun,x0,s0,param=init_asgf()):
 
         # scatter u
         comm.Scatterv([u,count_mat,displacements_mat,MPI.DOUBLE],chunk_u,root=0)
+        #print(f"process {rank} chunk_u {chunk_u}")
 
         # reset function eval counter
         aux_fun_eval = np.array(0, dtype='i')
@@ -562,6 +589,7 @@ def asgf_parallel_aux(comm,L,rank,fun,x0,s0,param=init_asgf()):
             g = lambda t : fun(x + t*chunk_u[d])
             # aux directions 
             chunk_dg[d], chunk_L_loc[d], aux_fun_eval_d = gh_quad_aux(g, s, param)
+            #print(f"aux {rank} and dim {rank+d} dg {chunk_dg[d]}")
             # update number of function evaluations
             aux_fun_eval += int(aux_fun_eval_d)
 

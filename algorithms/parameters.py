@@ -33,7 +33,8 @@ def init_asgf():
                     'fun_req':-np.inf,
                     'maxiter':5000, 
                     'xtol':1e-06, 
-                    'verbose':0
+                    'verbose':0,
+                    'optimizer':'grad'
                  }
 
     return SimpleNamespace(**asgf_param)
