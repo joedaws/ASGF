@@ -3,6 +3,8 @@ import numpy as np
 from tools.scribe import RLScribe, FScribe, hs_to_str
 from tools.optimizer import AdamUpdater
 from tools.util import make_rl_j_fn, setup_agent_env, update_net_param, get_net_param
+from algorithms.parameters import init_dgs
+
 # set print options
 np.set_printoptions(linewidth=100, suppress=True, formatter={'float':'{: 0.4f}'.format})
 # RNG seed for numpy
@@ -27,19 +29,29 @@ np.random.seed(0)
                 x -- the minimizer
 '''
 # Directional Gaussian Smoothing
+"""
 def dgs(fun, x0, lr=.1, M=7, r=1.5, alpha=1.0, beta=.3, gamma=.01, \
         maxiter=5000, xtol=1e-06, verbose=0):
-
+"""
+def dgs(fun, x0, param=init_dgs()):
+    """
+    Inputs
+        fun -- function to be minimized
+        x0  -- initial guess of minimizer
+        param -- SimpleNamespace for all the reqequired algorithm parameters
+    """
     # initialize variables
     x, dim = np.copy(x0), len(x0)
+
+    #TODO should we initialize to random directions?
     u = np.eye(dim)
-    s = r * np.ones(dim)
+    s = param.r * np.ones(dim)
     # save the initial state
     x_min = np.copy(x)
     f_min = fun_x = fun(x)
     itr_min, fun_eval, fun_eval_min = 0, 1, 1
 
-    for itr in range(maxiter):
+    for itr in range(param.maxiter):
         # initialize gradient
         dg = np.zeros(dim)
 
@@ -48,15 +60,15 @@ def dgs(fun, x0, lr=.1, M=7, r=1.5, alpha=1.0, beta=.3, gamma=.01, \
             # define directional function
             g = lambda t : fun(x + t*u[d])
             # estimate smoothed gradient
-            p, w = np.polynomial.hermite.hermgauss(M)
+            p, w = np.polynomial.hermite.hermgauss(param.M)
             g_val = np.array([g(p_i*s[d]) for p_i in p])
-            fun_eval += M-1
+            fun_eval += param.M-1
             dg[d] = np.sum(w*p * g_val) / (s[d] * np.sqrt(np.pi)/2)
 
         # assemble the gradient
         df = np.matmul(dg, u)
         # step of gradient descent
-        x -= lr * df
+        x -= param.lr * df
         fun_x = fun(x)
         fun_eval += 1
         # save the best state so far
@@ -66,16 +78,16 @@ def dgs(fun, x0, lr=.1, M=7, r=1.5, alpha=1.0, beta=.3, gamma=.01, \
             itr_min = itr
             fun_eval_min = fun_eval
         # report the current state
-        if verbose > 0:
+        if param.verbose > 0:
             print('dgs-iteration {:d}: f = {:.2e}'.format(itr+1, fun_x))
 
         # update parameters
-        if np.linalg.norm(lr*df) < xtol:
+        if np.linalg.norm(param.lr*df) < param.xtol:
             break
-        elif np.linalg.norm(df) < gamma:
+        elif np.linalg.norm(df) < param.gamma:
             Du = np.random.random((dim,dim))
-            u = np.eye(dim) + alpha * (Du - Du.T)
-            s = (r + beta * (2*np.random.random(dim) - 1))
+            u = np.eye(dim) + param.alpha * (Du - Du.T)
+            s = (param.r + param.beta * (2*np.random.random(dim) - 1))
 
     return x_min, itr_min+1, fun_eval_min
 
