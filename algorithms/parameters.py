@@ -5,9 +5,13 @@ from types import SimpleNamespace
 
 import numpy as np
 
-def init_asgf():
+def init_asgf(**kwargs):
     """
-    generic defaults for asgf
+    with no additional inputs returns default parameters for the asgf algorithm
+    example: param = init_asgf()
+
+    with addtional inputs reutrns custom paramters for the asgf algorithm
+    example: param = init_asgf(s_rate=0.3,maxiter=300)
     """
     asgf_param = {
                     's_rate':0.9,
@@ -37,11 +41,40 @@ def init_asgf():
                     'optimizer':'grad'
                  }
 
+    # update if necessary
+    for k in kwargs:
+        asgf_param[k] = kwargs[k] 
+
     return SimpleNamespace(**asgf_param)
 
-def not_yet_implemented(s):
-    print(f"Sorry but defaults for {s} are not yet implemented")
+def init_dgs(**kwargs):
+    """
+    without additional inputs returns a default paramter set for the dgs algorithm
+    example: param = init_dgs()
 
+    each parameter can also be set
+    example: param = init_dgs(M=9)
+    """
+    # initial values of paramters
+    dgs_param = {
+                    'lr':0.1,
+                    'M':7,
+                    'r':1.5,
+                    'alpha':1.0,
+                    'beta':0.3,
+                    'gamma':0.1,
+                    'maxiter':5000,
+                    'xtol':1e-06,
+                    'verbose':0
+                }
+
+    # update if necessary
+    for k in kwargs:
+        dgs_param[k] = kwargs[k] 
+    
+    return SimpleNamespace(**dgs_param)
+
+# TODO not sure if best way to do this
 def get_asgf_param(problem_type='low_d_opt'):
     """
     modify default parameters for asgf 
@@ -73,3 +106,8 @@ def get_asgf_param(problem_type='low_d_opt'):
         print(f"No known paramters for {problem_type} using defaults for optimization")
 
     return asgf_param
+
+def not_yet_implemented(s):
+    print(f"Sorry but defaults for {s} are not yet implemented")
+
+
