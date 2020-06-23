@@ -1,3 +1,4 @@
+from inspect import signature
 from mpi4py import MPI
 import numpy as np
 from tools.scribe import RLScribe, FScribe, hs_to_str
@@ -9,6 +10,25 @@ from algorithms.parameters import init_dgs
 np.set_printoptions(linewidth=100, suppress=True, formatter={'float':'{: 0.4f}'.format})
 # RNG seed for numpy
 np.random.seed(0)
+def get_g(f,x,xi,n):
+    if n == 1:
+        return lambda t: f(x + t*xi)
+    elif n == 2:
+        return lambda t,itr: f(x + t*xi,itr)
+
+def get_dg_val(g,n,M,s_d,i):
+    p,w = np.polynomial.hermite.hermgauss(M)
+    if n == 1:
+        g_val = np.array([g(p_i*s_d) for p_i in p])
+    elif n == 2:
+        g_val = np.array([g(p_i*s_d,i) for p_i in p])
+    return np.sum(w*p*g_val) / (s_d*np.sqrt(np.pi)/2)
+
+def eval_f(f,x,n,i):
+    if n == 1:
+        return f(x)
+    elif n == 2:
+        return f(x,i)
 
 '''
         the following is the implementation of the directional gaussian smoothing
@@ -29,17 +49,22 @@ np.random.seed(0)
                 x -- the minimizer
 '''
 # Directional Gaussian Smoothing
-"""
-def dgs(fun, x0, lr=.1, M=7, r=1.5, alpha=1.0, beta=.3, gamma=.01, \
-        maxiter=5000, xtol=1e-06, verbose=0):
-"""
-def dgs(fun, x0, param=init_dgs()):
+def dgs(fun, x0, param):
     """
-    Inputs
+    Inputs:
         fun -- function to be minimized
         x0  -- initial guess of minimizer
         param -- SimpleNamespace for all the reqequired algorithm parameters
+
+    Outputs:
+        x_min -- minimizer obtained by algorithm
+        itr_min -- number of iterations required to obtain minimizer
+        fun_eval_min -- number of fucntion evaluations used.
     """
+    # check signiture of fun
+    sig_fun = signature(fun)
+    num_fun_args = len(sig_fun.parameters)
+
     # initialize variables
     x, dim = np.copy(x0), len(x0)
 
@@ -48,7 +73,8 @@ def dgs(fun, x0, param=init_dgs()):
     s = param.r * np.ones(dim)
     # save the initial state
     x_min = np.copy(x)
-    f_min = fun_x = fun(x)
+    #f_min = fun_x = fun(x)
+    f_min = fun_x = eval_f(fun,x,num_fun_args,0)
     itr_min, fun_eval, fun_eval_min = 0, 1, 1
 
     for itr in range(param.maxiter):
@@ -58,19 +84,24 @@ def dgs(fun, x0, param=init_dgs()):
         # estimate gradient along each direction
         for d in range(dim):
             # define directional function
-            g = lambda t : fun(x + t*u[d])
+            g = get_g(fun,x,u[d],num_fun_args)
             # estimate smoothed gradient
-            p, w = np.polynomial.hermite.hermgauss(param.M)
-            g_val = np.array([g(p_i*s[d]) for p_i in p])
+            #p, w = np.polynomial.hermite.hermgauss(param.M)
+            #g_val = np.array([g(p_i*s[d]) for p_i in p])
             fun_eval += param.M-1
-            dg[d] = np.sum(w*p * g_val) / (s[d] * np.sqrt(np.pi)/2)
+            #dg[d] = np.sum(w*p * g_val) / (s[d] * np.sqrt(np.pi)/2)
+            dg[d] = get_dg_val(g,num_fun_args,param.M,s[d],itr)
 
         # assemble the gradient
         df = np.matmul(dg, u)
+        
         # step of gradient descent
         x -= param.lr * df
-        fun_x = fun(x)
+
+        #fun_x = fun(x)
+        fun_x = eval_f(fun,x,num_fun_args,itr)
         fun_eval += 1
+
         # save the best state so far
         if fun_x < f_min:
             x_min = np.copy(x)
@@ -82,7 +113,7 @@ def dgs(fun, x0, param=init_dgs()):
             print('dgs-iteration {:d}: f = {:.2e}'.format(itr+1, fun_x))
 
         # update parameters
-        if np.linalg.norm(param.lr*df) < param.xtol:
+        if np.linalg.norm(param.lr*df) < param.gtol:
             break
         elif np.linalg.norm(df) < param.gamma:
             Du = np.random.random((dim,dim))
@@ -92,7 +123,7 @@ def dgs(fun, x0, param=init_dgs()):
     return x_min, itr_min+1, fun_eval_min
 
 def get_split_sizes(data,size):
-    """gets correct split sizes for size number of workers to split data"""
+    """gets correct split sizes for size number of processes to split data"""
     split = np.array_split(data,size,axis=0)
     split_sizes = []
     for i in range(len(split)):
@@ -100,64 +131,53 @@ def get_split_sizes(data,size):
 
     return split_sizes
 
-def dgs_master(comm,L,rank,fun, x0,
-        scribe=RLScribe('data_dgs','unknown','unkonwn'),
-        lr=.1,
-        M=7,
-        r=np.sqrt(2),
-        alpha=2.0,
-        beta=np.sqrt(2)/5,
-        gamma=.01,
-        maxiter=500,
-        gtol=1e-06):
-    """Directional Gaussian Smoothing Parallel implementation for master
+def dgs_parallel_main(comm,L,rank,fun,x0,scribe,param):
+    """Directional Gaussian Smoothing Parallel implementation for main process
         the following is the implementation of the directional gaussian smoothing
         optimization algorithm (https://arxiv.org/abs/2002.03001)
         the default values of hyperparameters are taken from the paper
         on reinforcement learning (https://arxiv.org/abs/2002.09077)
 
-        inputs:
-                fun -- function handle
-                x0  -- initial guess
-                scribe -- instance of scribe class for recording
-                lr  -- learning rate
-                M   -- number of quadrature points to use
-                r, alpha, beta, gamma -- other hyperparameters
-                maxiter -- maximal number of iterations
-                gtol    -- tolerance for the magnitude of the gradient
+        Inputs:
+            comm -- mpi comm world
+            L    -- number of processes
+            rank -- rank of process
+            fun -- function to be minimized
+            x0  -- initial guess
+            scribe -- instance of scribe class for recording
+            param -- paramters for the algorithm
 
-        outputs:
+        Outputs:
                 x   -- the minimizer
                 its -- number of iterations until minimizer was obtained
     """
     # everybody does this
     x, dim = np.copy(x0), len(x0)
 
-    # master process initializes variables
+    # main process initializes variables
     # splits and prepares data for scatter
     # initialize u and s
-    #u = np.eye(dim)
-    u = np.random.rand(dim,dim)
-    print(f'the main process just made this great u \n {u}')
+    u = np.eye(dim)
+    #u = np.random.rand(dim,dim)
 
-    s = r * np.ones(dim)
+    s = param.r * np.ones(dim)
 
     # get split sizes
     split_sizes_u = get_split_sizes(u,L)
     split_sizes_s = get_split_sizes(s,L)
 
-    # number of matrix elements to be recieved by each worker
+    # number of matrix elements to be recieved by each process
     count_u = split_sizes_u*dim
     displacements_u = np.insert(np.cumsum(count_u),0,0)[0:-1]
 
-    # number of vector elements to be recieved by each worker
+    # number of vector elements to be recieved by each process
     count_s = split_sizes_s
     displacements_s = np.insert(np.cumsum(count_s),0,0)[0:-1]
 
-    # master initializes gradient
+    # main initializes gradient
     dg = np.zeros(dim)
 
-    # master initializes optimizer
+    # main initializes optimizer
     opt = AdamUpdater()
 
     # initialize the best_val to be infinity
@@ -170,89 +190,101 @@ def dgs_master(comm,L,rank,fun, x0,
     break_flag = False
     update_flag = False
 
-    # broadcast necessary info to all workers
-    worker_sizes_u = comm.bcast(split_sizes_u, root = 0)
-    worker_sizes_s = comm.bcast(split_sizes_s, root = 0)
+    # broadcast necessary info to all 
+    aux_sizes_u = comm.bcast(split_sizes_u, root = 0)
+    aux_sizes_s = comm.bcast(split_sizes_s, root = 0)
     count_u = comm.bcast(count_u, root = 0)
     count_s = comm.bcast(count_s, root = 0)
     displacements_u = comm.bcast(displacements_u, root = 0)
     displacements_s = comm.bcast(displacements_s, root = 0)
     exp_num = comm.bcast(exp_num,root=0)
 
-    # create worker_chunks
-    worker_chunk_u = np.zeros((int(worker_sizes_u[rank]),dim))
-    worker_chunk_s = np.zeros(int(worker_sizes_s[rank]))
-    worker_chunk_dg = np.zeros(int(worker_sizes_s[rank]))
-    # scatter u and s
-    comm.Scatterv([u,count_u,displacements_u,MPI.DOUBLE], worker_chunk_u,root=0)
-    comm.Scatterv([s,count_s,displacements_s,MPI.DOUBLE], worker_chunk_s,root=0)
+    # create chunks
+    chunk_u = np.zeros((int(aux_sizes_u[rank]),dim))
+    chunk_s = np.zeros(int(aux_sizes_s[rank]))
+    chunk_dg = np.zeros(int(aux_sizes_s[rank]))
 
-    print(f'{rank} {worker_chunk_u}')
-    
+    # scatter u and s
+    comm.Scatterv([u,count_u,displacements_u,MPI.DOUBLE], chunk_u,root=0)
+    comm.Scatterv([s,count_s,displacements_s,MPI.DOUBLE], chunk_s,root=0)
+   
+    # initialize function evaluation counter
+    fun_eval = 1
+
+    # check signiture of fun
+    sig_fun = signature(fun)
+    num_fun_args = len(sig_fun.parameters)
+
     # wait for everyone
     comm.Barrier()
 
     # begin iterations for everyone
-    for i in range(maxiter):
+    for itr in range(param.maxiter):
 
         # broadcast new x
         x = comm.bcast(x,root=0)
 
-        #print(f"master before update on it {i} has first {x[0]} middle {x[int(len(x)/2)]} last {x[-1]}")
-
         # scatter u and s
         if update_flag == True:
-            comm.Scatterv([u,count_u,displacements_u,MPI.DOUBLE], worker_chunk_u,root=0)
-            comm.Scatterv([s,count_s,displacements_s,MPI.DOUBLE], worker_chunk_s,root=0)
+            comm.Scatterv([u,count_u,displacements_u,MPI.DOUBLE], chunk_u,root=0)
+            comm.Scatterv([s,count_s,displacements_s,MPI.DOUBLE], chunk_s,root=0)
             update_flag = False
 
         #for d in range(int(displacements_s[rank]),int(displacements_s[rank]+count_s[rank])):
-        for d in range(worker_chunk_u.shape[0]):
+        for d in range(chunk_u.shape[0]):
             # define directional function
-            g = lambda t : fun(x + t*worker_chunk_u[d],i+exp_num)
+            #g = lambda t : fun(x + t*chunk_u[d])
+            g = get_g(fun,x,chunk_u[d],num_fun_args)
             # estimate smoothed gradient
-            p, w = np.polynomial.hermite.hermgauss(M)
-            g_val = np.array([g(p_i*worker_chunk_s[d]) for p_i in p])
-            worker_chunk_dg[d] = np.sum(w * p * g_val)/(worker_chunk_s[d] * np.sqrt(np.pi)/2)
+            #p, w = np.polynomial.hermite.hermgauss(param.M)
+            #g_val = np.array([g(p_i*chunk_s[d]) for p_i in p])
+            #chunk_dg[d] = np.sum(w * p * g_val)/(chunk_s[d] * np.sqrt(np.pi)/2)
+            chunk_dg[d] = get_dg_val(g,num_fun_args,param.M,chunk_s[d],itr)
 
+        # increment number of function evaluations
+        fun_eval += dim*(param.M-1) 
+        
         # syncronize
         comm.Barrier()
 
-        # master collects dg
-        comm.Gatherv(worker_chunk_dg,[dg,count_s,displacements_s,MPI.DOUBLE], root = 0)
+        # main collects dg
+        comm.Gatherv(chunk_dg,[dg,count_s,displacements_s,MPI.DOUBLE], root = 0)
 
-        # master updates df
-        # assemble the gradient
+        # main updates df i.e. assembling the gradient
         df = np.matmul(dg, u)
 
         # step of gradient descent
-        #x -= lr * df
-        opt.step(x,lr,df)
+        if param.optimizer == 'grad':
+            x -= param.lr * df
+        elif param.optimizer == 'adam':
+            opt.step(x,param.lr,df)
 
-        new_val = fun(x,i+exp_num)
+        #new_val = fun(x)
+        new_val = eval_f(fun,x,num_fun_args,itr)
+        fun_eval += 1
 
         # scribe record the progress
-        scribe.record_iteration_data(iteration=i+1,reward=-new_val,inf_norm_diff=np.amax(np.abs(np.abs(lr*df))))
-        print(f"v4 iteration {i+1:3d} | reward = {-fun(x,i):6.5f} | inf-norm-diff = {np.amax(np.abs(lr*df)):4.5e}")
+        scribe.record_iteration_data(iteration=itr+1,reward=-new_val,inf_norm_diff=np.amax(np.abs(np.abs(param.lr*df))))
+        print(f"iteration {itr+1:3d} | reward = {-new_val:6.5f} | inf-norm-diff = {np.amax(np.abs(param.lr*df)):4.5e}")
 
         # test if we have found new best value
         if new_val < best_val:
             best_val = new_val
             # checkpoint
-            scribe.checkpoint(x,opt,i+1,best=True)
+            scribe.checkpoint(x,opt,itr+1,best=True)
 
         # check point for 100 iterations
-        if i+1 % 100 == 0:
-            scribe.checkpoint(x,opt,i+1)
+        if itr+1 % 100 == 0:
+            scribe.checkpoint(x,opt,itr+1)
 
         # update parameters
-        if np.linalg.norm(df) < gtol:
+        if np.linalg.norm(df) < param.gtol:
             break_flag = True
-        elif np.linalg.norm(df) < gamma:
-            #print(f"master updating on it {i}")
+        elif np.linalg.norm(df) < param.gamma:
+            #print(f"main updating on it {i}")
             Du = np.random.random((dim,dim))
-            u = np.eye(dim) + alpha * (Du - Du.T)
-            s = (r + beta * (2*np.random.random(dim) - 1))
+            u = np.eye(dim) + param.alpha * (Du - Du.T)
+            s = (param.r + param.beta * (2*np.random.random(dim) - 1))
             update_flag = True
 
         # broadcast the flags
@@ -263,44 +295,31 @@ def dgs_master(comm,L,rank,fun, x0,
         if break_flag:
             break
 
-    scribe.record_metadata(total_iterations=i+1,final_value=-fun(x,i+exp_num))
-    # master process returns values
-    return x, i+1
+    scribe.record_metadata(total_iterations=itr+1,final_value=-new_val)
+    # main process returns values
+    return x, itr+1, fun_eval 
 
-def dgs_worker(comm,L,rank,fun, x0,
-               lr=.1,
-               M=7,
-               r=1.5,
-               alpha=2.0,
-               beta=.3,
-               gamma=.01,
-               maxiter=500,
-               gtol=1e-06):
-    """Directional Gaussian Smoothing Parallel implementation for workers
+def dgs_parallel_aux(comm,L,rank,fun,x0,param):
+    """Directional Gaussian Smoothing Parallel implementation for auxiliary processes
         the following is the implementation of the directional gaussian smoothing
         optimization algorithm (https://arxiv.org/abs/2002.03001)
         the default values of hyperparameters are taken from the paper
         on reinforcement learning (https://arxiv.org/abs/2002.09077)
 
         inputs:
-                fun -- function handle
-                x0  -- initial guess
-                lr  -- learning rate
-                M   -- number of quadrature points to use
-                r, alpha, beta, gamma -- other hyperparameters
-                maxiter -- maximal number of iterations
-                gtol    -- tolerance for the magnitude of the gradient
-
-        outputs:
-                x   -- the minimizer
-                its -- number of iterations until minimizer was obtained
+            comm -- mpi comm world
+            L    -- number of processes
+            rank -- rank of process
+            fun -- function handle
+            x0  -- initial guess
+            param -- dgs parameters
     """
     # everybody does this
     x, dim = np.copy(x0), len(x0)
 
-    # workers initialize placeholders
-    worker_sizes_u = None
-    worker_sizes_s = None
+    # aux initialize placeholders
+    aux_sizes_u = None
+    aux_sizes_s = None
     split_sizes_u = None
     split_sizes_s = None
     count_u = None
@@ -316,56 +335,59 @@ def dgs_worker(comm,L,rank,fun, x0,
     break_flag = False
     update_flag = False
 
-    # broadcast necessary info to all workers
-    worker_sizes_u = comm.bcast(split_sizes_u, root = 0)
-    worker_sizes_s = comm.bcast(split_sizes_s, root = 0)
+    # broadcast necessary info to all 
+    aux_sizes_u = comm.bcast(split_sizes_u, root = 0)
+    aux_sizes_s = comm.bcast(split_sizes_s, root = 0)
     count_u = comm.bcast(count_u, root = 0)
     count_s = comm.bcast(count_s, root = 0)
     displacements_u = comm.bcast(displacements_u, root = 0)
     displacements_s = comm.bcast(displacements_s, root = 0)
     exp_num = comm.bcast(exp_num,root=0)
 
-    # create worker_chunks
-    worker_chunk_u = np.zeros((int(worker_sizes_u[rank]),dim))
-    worker_chunk_s = np.zeros(int(worker_sizes_s[rank]))
-    worker_chunk_dg = np.zeros(int(worker_sizes_s[rank]))
+    # create chunks
+    chunk_u = np.zeros((int(aux_sizes_u[rank]),dim))
+    chunk_s = np.zeros(int(aux_sizes_s[rank]))
+    chunk_dg = np.zeros(int(aux_sizes_s[rank]))
     # scatter u and s
-    comm.Scatterv([u,count_u,displacements_u,MPI.DOUBLE], worker_chunk_u,root=0)
-    comm.Scatterv([s,count_s,displacements_s,MPI.DOUBLE], worker_chunk_s,root=0)
+    comm.Scatterv([u,count_u,displacements_u,MPI.DOUBLE], chunk_u,root=0)
+    comm.Scatterv([s,count_s,displacements_s,MPI.DOUBLE], chunk_s,root=0)
 
-    print(f'{rank} {worker_chunk_u}')
+    # check signiture of fun
+    sig_fun = signature(fun)
+    num_fun_args = len(sig_fun.parameters)
 
     # wait for everyone
     comm.Barrier()
 
     # begin iterations for everyone
-    for i in range(maxiter):
+    for itr in range(param.maxiter):
 
         # broadcast new x
         x = comm.bcast(x,root=0)
-        #print(f"{rank} on it {i} has first {x[0]} middle {x[int(len(x)/2)]} last {x[-1]}")
 
         # scatter u and s
         if update_flag == True:
-            #print(f"worker {rank} on it {i} is updating")
-            comm.Scatterv([u,count_u,displacements_u,MPI.DOUBLE], worker_chunk_u,root=0)
-            comm.Scatterv([s,count_s,displacements_s,MPI.DOUBLE], worker_chunk_s,root=0)
+            #print(f"process {rank} on it {i} is updating")
+            comm.Scatterv([u,count_u,displacements_u,MPI.DOUBLE], chunk_u,root=0)
+            comm.Scatterv([s,count_s,displacements_s,MPI.DOUBLE], chunk_s,root=0)
             update_flag = False
 
         #for d in range(int(displacements_s[rank]),int(displacements_s[rank]+count_s[rank])):
-        for d in range(worker_chunk_u.shape[0]):
+        for d in range(chunk_u.shape[0]):
             # define directional function
-            g = lambda t : fun(x + t*worker_chunk_u[d],i+exp_num)
+            #g = lambda t : fun(x + t*chunk_u[d])
+            g = get_g(fun,x,chunk_u[d],num_fun_args)
             # estimate smoothed gradient
-            p, w = np.polynomial.hermite.hermgauss(M)
-            g_val = np.array([g(p_i*worker_chunk_s[d]) for p_i in p])
-            worker_chunk_dg[d] = np.sum(w * p * g_val)/(worker_chunk_s[d] * np.sqrt(np.pi)/2)
+            #p, w = np.polynomial.hermite.hermgauss(param.M)
+            #g_val = np.array([g(p_i*chunk_s[d]) for p_i in p])
+            #chunk_dg[d] = np.sum(w * p * g_val)/(chunk_s[d] * np.sqrt(np.pi)/2)
+            chunk_dg[d] = get_dg_val(g,num_fun_args,param.M,chunk_s[d],itr)
 
         # syncronize
         comm.Barrier()
 
-        # master collects dg
-        comm.Gatherv(worker_chunk_dg,[dg,count_s,displacements_s,MPI.DOUBLE], root = 0)
+        # main collects dg
+        comm.Gatherv(chunk_dg,[dg,count_s,displacements_s,MPI.DOUBLE], root = 0)
 
         # broadcast the flags
         break_flag = comm.bcast(break_flag,root=0)
@@ -375,6 +397,7 @@ def dgs_worker(comm,L,rank,fun, x0,
         if break_flag:
             break
 
+# notsure if this is needed anymore
 def dgs_parallel(fun,x0,
         scribe=RLScribe('saves','unkonwn','unknown'),
         lr=.1,

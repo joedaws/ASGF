@@ -8,9 +8,21 @@ import matplotlib.pyplot as plt
 import gym
 import pybullet_envs
 from tools.agent import get_agent
+from tools.seeding import np_random
 
 def count_vars(module):
     return sum([np.prod(p.shape) for p in module.parameters()])
+
+def get_seed_list(n,seed):
+    """
+    get a robust list of seeds of length n
+    """
+    seed_list = []
+    rng,_=np_random(seed)
+    for i in range(n):
+        seed_list.append(rng.randint(0,100000))
+
+    return seed_list
 
 def simulate_reward(agent, env, itr, max_steps=200, scale=1, num_eps=10):
     """
@@ -33,7 +45,7 @@ def simulate_reward(agent, env, itr, max_steps=200, scale=1, num_eps=10):
                    'Acrobot-v1':500,
                 }
 
-    # get name of environment
+    # set max_steps
     try:
         max_steps = env_steps[env.spec.id]
     except:
@@ -42,7 +54,8 @@ def simulate_reward(agent, env, itr, max_steps=200, scale=1, num_eps=10):
     # list for rewards
     returns_list = []
 
-    seed_list = list(num_eps * (itr+1) + np.arange(num_eps))
+    # get list of seeds
+    seed_list = get_seed_list(num_eps,itr)
 
     for eps in range(num_eps):
         # get first observation

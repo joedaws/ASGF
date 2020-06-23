@@ -43,7 +43,7 @@ def init_asgf(**kwargs):
 
     # update if necessary
     for k in kwargs:
-        asgf_param[k] = kwargs[k] 
+        asgf_param[k] = kwargs[k]
 
     return SimpleNamespace(**asgf_param)
 
@@ -64,8 +64,9 @@ def init_dgs(**kwargs):
                     'beta':0.3,
                     'gamma':0.1,
                     'maxiter':5000,
-                    'xtol':1e-06,
-                    'verbose':0
+                    'gtol':1e-06,
+                    'verbose':0,
+                    'optimizer':'grad'
                 }
 
     # update if necessary

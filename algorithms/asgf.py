@@ -89,7 +89,7 @@ def gh_quad_main(g, s, args):
 def asgf(fun,x0,s0,param=init_asgf()):
     """
     Inputs:
-        fun -- function to be optimized
+        fun -- function to be minimized 
         x0  -- initial guess of minimizer
         s0  -- initial smoothing parameter
         param -- SimpleNamedspace for all of the required parameters
@@ -97,10 +97,7 @@ def asgf(fun,x0,s0,param=init_asgf()):
     Outputs:
         
     TODO:
-        need to compartmentalize parameters which will neverage change and those that 
-        are updated throughout the algorithm
-        
-        Those that change and may want to be recorded:
+        Variables that change and may want to be recorded:
             s
             u
             L_avg
@@ -318,7 +315,7 @@ def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
     # initialize gradient and Lipschitz constants
     dg, L_loc = np.zeros(dim), np.zeros(dim)
     #f_min = fun_x = fun(x)
-    f_min = fun_x = fun(x,0)
+    f_min = fun_x = fun(x)
     s_res = s0
 
     # main: initialize main function eval counter
@@ -370,7 +367,8 @@ def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
         for d in range(chunk_u.shape[0]):
             # define directional function
             #print(f"u[{rank+d}] {chunk_u[d]}")
-            g = lambda t : fun(x + t*chunk_u[d],itr+1)
+            #g = lambda t : fun(x + t*chunk_u[d],itr+1)
+            g = lambda t: fun(x + t*chunk_u[d])
             # main takes care of main direction
             chunk_dg[d], chunk_L_loc[d], fun_eval_d = gh_quad_main(g, s, param)
             #print(f"aux {rank} and dim {rank+d} dg {chunk_dg[d]}")
@@ -410,7 +408,8 @@ def asgf_parallel_main(comm,L,rank,fun,x0,s0,scribe,param=init_asgf()):
         #print(f"parallel: itr {itr} \n x {x} \n df {df} \n lr {lr}")
         
         # evaluate function
-        fun_x = fun(x,itr+1)
+        #fun_x = fun(x,itr+1)
+        fun_x = fun(x)
         fun_eval += 1
 
         # scribe records data
@@ -582,7 +581,8 @@ def asgf_parallel_aux(comm,L,rank,fun,x0,s0,param=init_asgf()):
         for d in range(chunk_u.shape[0]):
             # define directional function
             #print(f"u[{rank+d}] {chunk_u[d]}")
-            g = lambda t : fun(x + t*chunk_u[d],itr+1)
+            #g = lambda t : fun(x + t*chunk_u[d],itr+1)
+            g = lambda t: fun(x + t*chunk_u[d])
             # aux directions 
             chunk_dg[d], chunk_L_loc[d], aux_fun_eval_d = gh_quad_aux(g, s, param)
             #print(f"dg[{rank+d}] {chunk_dg[d]}")
@@ -625,6 +625,7 @@ def asgf_parallel(fun, x0, s0, scirbe, param=init_asgf()):
 
     return x,itr,fun_eval
 
+#TODO may get rid of this function
 def asgf_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8],policy_mode='deterministic'):
     """
     train an agent to solve the env_name task using

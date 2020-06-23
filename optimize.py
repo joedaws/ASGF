@@ -16,12 +16,16 @@ import numpy as np
 from mpi4py import MPI
 from tools.function import target_function, stochastic_target_function, initial_guess
 from tools.mpi_util import mpi_fork
-from tools.scribe import FScribe
+from tools.util import make_rl_j_fn
+from tools.scribe import FScribe, RLScribe, hs_to_str
 from algorithms.asgf import asgf, asgf_parallel_main, asgf_parallel_aux
-from algorithms.dgs import dgs
-from algorithms.parameters import init_asgf
+from algorithms.dgs import dgs, dgs_parallel_main, dgs_parallel_aux
+from algorithms.parameters import init_asgf, init_dgs
 import cma
 from scipy.optimize import minimize
+
+# list of benchmark functions
+function_list = ['ackley','levy','rastrigin','branin','cross-in-tray','dropwave','sphere']
 
 def get_function(fun,dim,process,mean,std):
     """
@@ -77,6 +81,13 @@ if __name__ == "__main__":
                          type=int,
                          default=1,
                          help='number of parallel processes to use')
+
+    # hidden layer sizes
+    parser.add_argument('--hidden_sizes',
+                         #nargs='+',
+                         type=lambda x: [int(item) for item in x.split(',')],
+                         default=[8,8],
+                         help='list of ints for hidden layer sizes')
 
     # parse arguements
     args = parser.parse_args()
@@ -134,7 +145,93 @@ if __name__ == "__main__":
             print('\naverage number of iterations / evaluations / convergence rate for {:s}:'.format(args.algo))
             print('{:d}d-{:s} --- {:.0f} / {:.0f} / {:6.2f}%'.\
                   format(dim, args.fun, itr_num/conv_num, fev_num/conv_num, 100*conv_sim/sim_num))
+ 
+    elif args.algo == 'dgs_parallel':
         
+        # MPI related variables
+        comm = MPI.COMM_WORLD
+        L = comm.Get_size()
+        rank = comm.Get_rank()
+        
+        # check number of processes
+        if args.nprocs <= 1:
+            raise ValueError('Number of processes must be more than 1')
+        
+        if args.fun in function_list:
+            # display the problem setup
+            dim = int(args.dim)
+            sim_num = int(args.sim)
+            if rank == 0:
+                print('Optimizing {:d}d-{:s} using {:s} ({:d} simulations)'.\
+                       format(dim, args.fun, args.algo, sim_num))
+            
+            # setup optimization problem
+            conv_sim, itr_num, fev_num = 0, 0, 0
+            fun, x_min, x_dom = get_function(args.fun, dim,args.process, args.mean, args.std)
+            dgs_params = {'ackley': {'lr': .1, 'M': 5, 'r': 5, 'beta': 1, 'gamma': .1},\
+                          'levy': {'lr': .03, 'M': 17, 'r': 4, 'beta': .8, 'gamma': .001},\
+                          'rastrigin': {'lr': .003, 'M': 21, 'r': 5, 'beta': 1, 'gamma': .001},\
+                          'branin': {'lr': .03, 'M': 5, 'r': 1, 'beta': .2, 'gamma': .001},\
+                          'cross-in-tray': {'lr': .03, 'M': 13, 'r': 2, 'beta': .4, 'gamma': .1},\
+                          'dropwave': {'lr': .1, 'M': 17, 'r': 2, 'beta': .4, 'gamma': .1},\
+                          'sphere': {'lr': .1, 'M': 5, 'r': 1, 'beta': .2, 'gamma': .01}}
+        
+            # get correct parameters
+            param = init_dgs(**dgs_params[args.fun])
+
+            # run optimization tests
+            for k in range(sim_num):
+                np.random.seed(k)
+                x0 = initial_guess(x_dom)
+                if rank == 0:
+                    scribe = FScribe('data/'+args.algo+'/'+str(k),args.algo)
+                    x, itr_k, fev_k = dgs_parallel_main(comm,L,rank,fun,x0,scribe,param)
+                    print('{:d}/{:d}  {:d}d-{:s}:  '.format(k+1, sim_num, dim, args.fun), end='')
+                    print('f = {:.2e},  {:d} iterations,  {:d} evaluations'.format(fun(x), itr_k, fev_k))
+                    # record stats on successful simulations
+                    f_delta = np.abs((fun(x) - fun(x_min)) / (fun(x0) - fun(x)))
+                    if f_delta < 1e-04:
+                        conv_sim += 1
+                        itr_num += itr_k
+                        fev_num += fev_k
+                    conv_num = np.nan if conv_sim == 0 else conv_sim
+                else:
+                    dgs_parallel_aux(comm,L,rank,fun,x0,param)
+            
+            # report statistics
+            if rank == 0:
+                print('\naverage number of iterations / evaluations / convergence rate for {:s}:'.format(args.algo))
+                print('{:d}d-{:s} --- {:.0f} / {:.0f} / {:6.2f}%'.\
+                    format(dim, args.fun, itr_num/conv_num, fev_num/conv_num, 100*conv_sim/sim_num))
+        
+        # reinforcement learning case
+        else:
+            # get correct parameters
+            param = init_dgs(lr=0.1,M=7,r=np.sqrt(2),alpha=2.,beta=0.2*np.sqrt(2),gamma=0.001,verbose=1,optimizer='adam')
+
+            # set up optimization problem
+            J,dim = make_rl_j_fn(args.fun,hs=args.hidden_sizes)
+            fun = lambda x,i: -J(x,i)
+            x0 = np.random.randn(dim)
+            
+            # get number of simulations
+            sim_num = int(args.sim)
+
+            # run optimization tests
+            for k in range(sim_num):
+                np.random.seed(k)
+                if rank == 0:
+                    scribe = RLScribe('data/'+args.algo,args.fun,hs_to_str(args.hidden_sizes))
+                    x, itr_k, fev_k = dgs_parallel_main(comm,L,rank,fun,x0,scribe,param)
+                    print('{:d}/{:d}  {:d}d-{:s}:  '.format(k+1, sim_num, dim, args.fun), end='')
+                    print('f = {:.2e},  {:d} iterations,  {:d} evaluations'.format(fun(x), itr_k, fev_k))
+                else:
+                    dgs_parallel_aux(comm,L,rank,fun,x0,param)
+            
+            # report statistics
+            if rank == 0:
+                print(f'Done training {args.fun}')
+
     elif args.algo == 'asgf':
         # display the problem setup
         dim = int(args.dim)
@@ -184,7 +281,7 @@ if __name__ == "__main__":
         for k in range(sim_num):
             np.random.seed(k)
             x0 = initial_guess(x_dom)
-            x, itr_k, fev_k = dgs(fun, x0, **dgs_params[args.fun])
+            x, itr_k, fev_k = dgs(fun, x0, init_dgs(**dgs_params[args.fun]))
             print('{:d}/{:d}  {:d}d-{:s}:  '.format(k+1, sim_num, dim, args.fun), end='')
             print('f = {:.2e},  {:d} iterations,  {:d} evaluations'.format(fun(x), itr_k, fev_k))
             # record stats on successful simulations
