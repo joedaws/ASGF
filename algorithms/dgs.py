@@ -4,6 +4,7 @@ import numpy as np
 from tools.scribe import RLScribe, FScribe, hs_to_str
 from tools.optimizer import AdamUpdater
 from tools.util import make_rl_j_fn, setup_agent_env, update_net_param, get_net_param
+from tools.function import get_function_list
 from algorithms.parameters import init_dgs
 
 # set print options
@@ -397,63 +398,95 @@ def dgs_parallel_aux(comm,L,rank,fun,x0,param):
         if break_flag:
             break
 
-# notsure if this is needed anymore
-def dgs_parallel(fun,x0,
-        scribe=RLScribe('saves','unkonwn','unknown'),
-        lr=.1,
-        M=7,
-        r=np.sqrt(2),
-        alpha=2.,
-        beta=.2*np.sqrt(2),
-        gamma=.001,
-        maxiter=500,
-        gtol=1e-06):
+def dgs_parallel(args):
     """parallel implementation of dgs
 
-    r --     1.0 or sqrt(2)?
-    alpha -- 2.0 or sqrt(2)/2?
-
-    Inputs:
-        fun -- function handle
-        x0  -- initial guess
-
-    Outputs:
-        xfinal -- minimizer obtained by algo
-        itr    -- number of iterations
+    kicks off dgs optimiation depending on the arguements in the parser object args
     """
+    # MPI related variables
     comm = MPI.COMM_WORLD
     L = comm.Get_size()
     rank = comm.Get_rank()
+    
+    # check number of processes
+    if args.nprocs <= 1:
+        raise ValueError('Number of processes must be more than 1')
+    
+    if args.fun in get_function_list():
+        # display the problem setup
+        dim = int(args.dim)
+        sim_num = int(args.sim)
+        if rank == 0:
+            print('Optimizing {:d}d-{:s} using {:s} ({:d} simulations)'.\
+                   format(dim, args.fun, args.algo, sim_num))
+        
+        # setup optimization problem
+        conv_sim, itr_num, fev_num = 0, 0, 0
+        fun, x_min, x_dom = get_function(args.fun, dim,args.process, args.mean, args.std)
+        dgs_params = {'ackley': {'lr': .1, 'M': 5, 'r': 5, 'beta': 1, 'gamma': .1},\
+                      'levy': {'lr': .03, 'M': 17, 'r': 4, 'beta': .8, 'gamma': .001},\
+                      'rastrigin': {'lr': .003, 'M': 21, 'r': 5, 'beta': 1, 'gamma': .001},\
+                      'branin': {'lr': .03, 'M': 5, 'r': 1, 'beta': .2, 'gamma': .001},\
+                      'cross-in-tray': {'lr': .03, 'M': 13, 'r': 2, 'beta': .4, 'gamma': .1},\
+                      'dropwave': {'lr': .1, 'M': 17, 'r': 2, 'beta': .4, 'gamma': .1},\
+                      'sphere': {'lr': .1, 'M': 5, 'r': 1, 'beta': .2, 'gamma': .01}}
+    
+        # get correct parameters
+        param = init_dgs(**dgs_params[args.fun])
 
-    x_dgs = None
-    itr_dgs = None
-
-    # run the optimization
-    if rank == 0:
-        x_dgs, itr_dgs = dgs_master(comm,L,rank,fun,x0,
-                         scribe=scribe,
-                         lr=lr,
-                         M=M,
-                         r=r,
-                         alpha=alpha,
-                         beta=beta,
-                         gamma=gamma,
-                         maxiter=maxiter,
-                         gtol=gtol)
-        # report the result
-        print('\ndgs-optimization terminated after {:d} iterations:'.format(itr_dgs),\
-              '  x_min = {}\n  f_min = {}'.format(x_dgs[:10], fun(x_dgs,itr_dgs)), sep='\n')
+        # run optimization tests
+        for k in range(sim_num):
+            np.random.seed(k)
+            x0 = initial_guess(x_dom)
+            if rank == 0:
+                scribe = FScribe('data/'+args.algo+'/'+str(k),args.algo)
+                x, itr_k, fev_k = dgs_parallel_main(comm,L,rank,fun,x0,scribe,param)
+                print('{:d}/{:d}  {:d}d-{:s}:  '.format(k+1, sim_num, dim, args.fun), end='')
+                print('f = {:.2e},  {:d} iterations,  {:d} evaluations'.format(fun(x), itr_k, fev_k))
+                # record stats on successful simulations
+                f_delta = np.abs((fun(x) - fun(x_min)) / (fun(x0) - fun(x)))
+                if f_delta < 1e-04:
+                    conv_sim += 1
+                    itr_num += itr_k
+                    fev_num += fev_k
+                conv_num = np.nan if conv_sim == 0 else conv_sim
+            else:
+                dgs_parallel_aux(comm,L,rank,fun,x0,param)
+        
+        # report statistics
+        if rank == 0:
+            print('\naverage number of iterations / evaluations / convergence rate for {:s}:'.format(args.algo))
+            print('{:d}d-{:s} --- {:.0f} / {:.0f} / {:6.2f}%'.\
+                format(dim, args.fun, itr_num/conv_num, fev_num/conv_num, 100*conv_sim/sim_num))
+    
+    # reinforcement learning case
     else:
-        dgs_worker(comm,L,rank,fun,x0,lr,M,r,alpha,beta,gamma,maxiter,gtol)
+        # get correct parameters
+        param = init_dgs(lr=0.1,M=7,r=np.sqrt(2),alpha=2.,beta=0.2*np.sqrt(2),gamma=0.001,verbose=1,optimizer='adam')
 
-    x_dgs = comm.bcast(x_dgs,root=0)
-    itr_dgs = comm.bcast(itr_dgs,root=0)
-    #MPI.Finalize()
-    #print('after Finalize')
+        # set up optimization problem
+        J,dim = make_rl_j_fn(args.fun,hs=args.hidden_sizes)
+        fun = lambda x,i: -J(x,i)
+        x0 = np.random.randn(dim)
+        
+        # get number of simulations
+        sim_num = int(args.sim)
 
-    return x_dgs, itr_dgs
-
-
+        # run optimization tests
+        for k in range(sim_num):
+            np.random.seed(k)
+            if rank == 0:
+                scribe = RLScribe('data/'+args.algo,args.fun,hs_to_str(args.hidden_sizes))
+                scribe.exp_num = k
+                x, itr_k, fev_k = dgs_parallel_main(comm,L,rank,fun,x0,scribe,param)
+                print('{:d}/{:d}  {:d}d-{:s}:  '.format(k+1, sim_num, dim, args.fun), end='')
+                print('f = {:.2e},  {:d} iterations,  {:d} evaluations'.format(fun(x), itr_k, fev_k))
+            else:
+                dgs_parallel_aux(comm,L,rank,fun,x0,param)
+        
+        # report statistics
+        if rank == 0:
+            print(f'Done training {args.fun}')
 
 def dgs_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8.8],policy_mode='deterministic'):
     """

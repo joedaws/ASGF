@@ -1,0 +1,28 @@
+name: CompareAlgorithms 
+
+conda_env: environment.yaml
+
+entry_points:
+  # functional optimization
+  optimize_dgs:
+    parameters:
+      fun: {type: string, default: "ackley"}
+      M: {type: int, default: 7}
+      lr: {type: float, default: 0.1}
+      gamma: {type: float, default: 0.1}
+      dim: {type: int, default: 10}
+      nprocs: {type: int, default: 1}
+      algo: {type: str, default: dgs}
+    command: "python -m run.{algo} {fun}
+                                 --M={M}
+                                 --lr={lr}
+                                 --gamma={gamma}
+                                 --dim={dim}
+                                 --nprocs={nprocs}" 
+  main:
+    parameters:
+      training_data: {type: string, default: "../sklearn_elasticnet_wine/wine-quality.csv"}
+    command: "python search_random.py {training_data}"
+
+
+

@@ -1,6 +1,22 @@
 import numpy as np
 
+def get_function(fun,dim,process,mean,std):
+    """
+    returns either stochastic or deterministic version of the function
+    """
+    if process == 'deterministic':
+        fun,x_min,x_dom = target_function(fun,dim)
 
+    elif process == 'stochastic':
+        fun,x_min,x_dom = stochastic_target_function(fun,dim,mean,std)
+    else:
+        raise ValueError(f'Invalid process {process}')
+
+    return fun,x_min,x_dom
+
+def get_function_list():
+    """returns list of available functions"""
+    return ['ackley','griewank','levy','rastrigin','sphere','branin','cross-in-tray','dropwave']
 
 ''' setup benchmark functions '''
 def target_function(function_name='ackley', dim=10):
