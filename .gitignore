@@ -5,5 +5,4 @@ data/*
 __pycache__
 *.csv
 *.swp
-outcmaes/*
-
+outcmaes/

@@ -18,7 +18,7 @@ NOTE: The creation of the asgf conda environment may take up to 5-7 minutes.
 ## Example usage for functional optimization
 
 ```
-python -m optimize --fun=ackley --dim=10 --algo=asgf --sim=1
+python -m optimize --fun=ackley --dim=10 --algo=asgf --sim=100
 ```
 * fun -- a string for the name of function to be minimizer. Implemented functions are in tools/function.py
 * dim -- input dimension of function
@@ -28,7 +28,7 @@ python -m optimize --fun=ackley --dim=10 --algo=asgf --sim=1
 ## Examlpe usage for reinforcement learning
 
 ```
-mpiexec -n 8 python -m train --env_name=InvertedPendulumBulletEnv-v0 --algo=asgf --hidden_sizes=12,12
+mpiexec -n 8 python -m train --env_name=InvertedPendulumBulletEnv-v0 --algo=asgf --hidden_sizes=8,8
 ```
 * env\_name -- name of gym environment. Must be already registered in gym or in pybullet\_envs
 * algo      -- name of algorithm to use to train the agent
