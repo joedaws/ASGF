@@ -24,13 +24,13 @@ def simulate_reward(agent, env, itr, max_steps=200, scale=1, num_eps=10):
     """
     env_steps = {
                    'Pendulum-v0':200,
-                   'CartPole-v0':200,
+                   'InvertedPendulumBulletEnv-v0':1000,
+                   'Acrobot-v1':500,
+                   'CartPole-v1':1000,
                    'MountainCarContinuous-v0':999,
                    'HopperBulletEnv-v0':1000,
-                   'InvertedPendulumBulletEnv-v0':1000,
                    'ReacherBulletEnv-v0':150,
-                   'MountainCar-v0':200,
-                   'Acrobot-v1':500,
+                   'MountainCar-v0':1000,
                 }
 
     # get name of environment
@@ -183,6 +183,7 @@ def setup_agent_env(env_name, max_steps=None, hs=[12]*2,policy_mode='determinist
 
     # make environemnt
     env = gym.make(env_name)
+    env._max_episode_steps = 10000
 
     # create agent
     agent = get_agent(env,hs,policy_mode=policy_mode)

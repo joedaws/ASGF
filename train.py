@@ -16,10 +16,11 @@ def get_maxiter(env_name):
     DEFAULT_ITS = 200
     max_its = {
                    'Pendulum-v0':200,
-                   'CartPole-v0':20,
+                   'InvertedPendulumBulletEnv-v0':100,
+                   'Acrobot-v1':200,
+                   'CartPole-v1':100,
                    'MountainCarContinuous-v0':500,
                    'HopperBulletEnv-v0':400,
-                   'InvertedPendulumBulletEnv-v0':150,
                    'ReacherBulletEnv-v0':150,
                 }
 
@@ -75,7 +76,7 @@ if __name__ == "__main__":
             print(f"Begin Training for {args.env_name} using {args.algo} with {size} workers")
         
         # train agent
-        asgf_parallel_train(rank,args.seed,args.env_name,maxiter,hidden_layers=args.hidden_sizes,policy_mode=args.policy_mode)
+        asgf_parallel_train(rank, int(args.seed), args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
 
     elif args.algo == 'dgs':
         if rank == 0:
@@ -83,4 +84,6 @@ if __name__ == "__main__":
             print(f"Begin Training for {args.env_name} using {args.algo} with {size} workers")
         
         # train agent
-        dgs_parallel_train(rank,args.seed,args.env_name,maxiter,hidden_layers=args.hidden_sizes,policy_mode=args.policy_mode)
+        dgs_parallel_train(rank, int(args.seed), args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
+
+

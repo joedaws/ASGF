@@ -17,7 +17,7 @@ def generate_directions(dim, vec=None):
 							np.random.randn(dim,dim-1)), axis=1)
 	u /= np.linalg.norm(u, axis=0)
 	u = np.linalg.qr(u)[0].T
-	return u
+	return u.copy()
 
 def reset_params(args):
 	u = generate_directions(len(args['x0']))
@@ -338,11 +338,12 @@ def asgf_master(comm,L,rank,fun, x0, s0, scribe = RLScribe('data_adgs','unknown'
         df = np.matmul(dg, u)
 
         # average Lipschitz constant along the main direction
-        L_avg = (1 - L_lmb) * np.amax(L_loc) + L_lmb * L_avg
+        L_avg = L_loc[0] if L_avg == 0 else (1 - L_lmb) * L_loc[0] + L_lmb * L_avg
+        #L_avg = (1 - L_lmb) * L_loc[0] + L_lmb * L_avg
 
         # select learning rate
-        #lr = np.clip(10 * s/L_avg, lr_min, lr_max)
-        lr = np.clip(10 * s/L_avg, lr_min, lr_max)
+        lr = np.clip(s/10, lr_min, lr_max)
+        #lr = np.clip(s/L_avg, lr_min, lr_max)
 
         # TODO: do we need ADAM updates or not?
         # perform step
@@ -556,9 +557,9 @@ def asgf_worker(comm,L,rank,fun, x0, s0, scribe = RLScribe('data_adgs','unknown'
             break
 
 def asgf_parallel(fun, x0, s0, scribe = RLScribe('data_adgs','unknown','unknown'),
-                  s_rate=.9, m_min=3, m_max=11, qtol=.1,
+                  s_rate=.9, m_min=3, m_max=21, qtol=.1,
                   A_grad=.1, B_grad=.9, A_dec=.95, A_inc=1.02, B_dec=.98, B_inc=1.01,
-                  L_avg=1, L_lmb=.9, s_min=1e-03, s_max=5, lr_min=1e-03, lr_max=1,
+                  L_avg=1, L_lmb=.9, s_min=1e-03, s_max=5, lr_min=1e-03, lr_max=1e+03,
                   restart=False, num_res=2, res_mult=10, res_div=10, fun_req=-np.inf,
                   maxiter=1000, xtol=1e-06, verbose=3, optimizer='grad'):
     """
@@ -620,9 +621,13 @@ def asgf_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8],policy
         print('iteration   0: reward = {:6.2f}'.format(J(w0,1)))
 
     # run dgs parallel implementation
-    asgf_args = dict(s0=3, s_rate=1.0, m_min=5, m_max=5, L_avg=1000, L_lmb=.9, \
-                     s_min=.01, s_max=100, lr_min=.01, lr_max=1, \
+    asgf_args = dict(s0=np.sqrt(d)/10, s_rate=.99, m_min=5, m_max=21, L_avg=0, L_lmb=.9,\
+                     A_grad=np.inf, B_grad=np.inf,\
+                     s_min=.01, s_max=100, lr_min=.001, lr_max=10, restart=False,\
                      maxiter=maxiter, xtol=1e-06, verbose=3, optimizer='adam')
+#    asgf_args = dict(s0=np.sqrt(d)/10, s_rate=.9, m_min=5, m_max=21, L_avg=0, L_lmb=.9, \
+#                     B_grad=np.inf, s_min=.01, s_max=100, lr_min=.001, lr_max=10, restart=False,\
+#                     maxiter=maxiter, xtol=1e-06, verbose=3, optimizer='adam')
     _, itr, fun_val = asgf_parallel(lambda w,i: -J(w,i), w0, scribe=scribe, **asgf_args)
 
     print(f"Finished training in {itr} iterations with final fun_val as {fun_val}")

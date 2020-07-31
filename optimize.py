@@ -87,12 +87,13 @@ if __name__ == "__main__":
                       'branin': {'lr': .03, 'M': 5, 'r': 1, 'beta': .2, 'gamma': .001},\
                       'cross-in-tray': {'lr': .03, 'M': 13, 'r': 2, 'beta': .4, 'gamma': .1},\
                       'dropwave': {'lr': .1, 'M': 17, 'r': 2, 'beta': .4, 'gamma': .1},\
-                      'sphere': {'lr': .1, 'M': 5, 'r': 1, 'beta': .2, 'gamma': .01}}
+                      # #'sphere': {'lr': .1, 'M': 5, 'r': 1, 'beta': .2, 'gamma': .01}}
+                      'sphere': {'lr': 1/16, 'M': 7, 'r': 2**.5, 'beta': 2**.5/5, 'gamma': .01}}
         # run optimization tests
         for k in range(sim_num):
             np.random.seed(k)
             x0 = initial_guess(x_dom)
-            x, itr_k, fev_k = dgs(fun, x0, **dgs_params[args.fun])
+            x, itr_k, fev_k = dgs(fun, x0, verbose=1, **dgs_params[args.fun])
             print('{:d}/{:d}  {:d}d-{:s}:  '.format(k+1, sim_num, dim, args.fun), end='')
             print('f = {:.2e},  {:d} iterations,  {:d} evaluations'.format(fun(x), itr_k, fev_k))
             # record stats on successful simulations

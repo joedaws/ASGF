@@ -86,7 +86,7 @@ class Agent:
     general agent class
     """
     def __init__(self,env):
-        self.hid_width = 12
+        self.hid_width = 8
         self.pikwargs = {
                          'layers': 2,
                          'hidden_sizes':self.hid_width*2,
@@ -257,7 +257,7 @@ class MLPGaussianAgent(Agent):
                              }
                             )
 
-def get_agent(env,hs=[12]*2,activation=None,policy_mode='deterministic'):
+def get_agent(env,hs=[8]*2,activation=None,policy_mode='deterministic'):
     """
     get correct agent based on the kind of action space
     """
