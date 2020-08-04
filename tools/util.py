@@ -1,5 +1,5 @@
 """
-Useful functions for testing rl with gym environments
+Usefule functions for testing rl with gym environments
 """
 import torch
 import torch.nn as nn
@@ -12,7 +12,7 @@ from tools.agent import get_agent
 def count_vars(module):
     return sum([np.prod(p.shape) for p in module.parameters()])
 
-def simulate_reward(agent, env, itr, max_steps=200, scale=1, num_eps=10):
+def simulate_reward(agent, env, itr, max_steps=200, scale=1, num_eps=1):
     """
     Inputs:
         agent     -- MLPAgent
@@ -24,13 +24,13 @@ def simulate_reward(agent, env, itr, max_steps=200, scale=1, num_eps=10):
     """
     env_steps = {
                    'Pendulum-v0':200,
-                   'InvertedPendulumBulletEnv-v0':1000,
-                   'Acrobot-v1':500,
-                   'CartPole-v1':1000,
+                   'CartPole-v0':200,
                    'MountainCarContinuous-v0':999,
                    'HopperBulletEnv-v0':1000,
+                   'InvertedPendulumBulletEnv-v0':1000,
                    'ReacherBulletEnv-v0':150,
-                   'MountainCar-v0':1000,
+                   'MountainCar-v0':200,
+                   'Acrobot-v1':500,
                 }
 
     # get name of environment
@@ -43,7 +43,6 @@ def simulate_reward(agent, env, itr, max_steps=200, scale=1, num_eps=10):
     returns_list = []
 
     seed_list = list(num_eps * (itr+1) + np.arange(num_eps))
-
     for eps in range(num_eps):
         # get first observation
         env.seed(int(seed_list[eps]))
@@ -183,10 +182,9 @@ def setup_agent_env(env_name, max_steps=None, hs=[12]*2,policy_mode='determinist
 
     # make environemnt
     env = gym.make(env_name)
-    env._max_episode_steps = 10000
 
     # create agent
-    agent = get_agent(env,hs,policy_mode=policy_mode)
+    agent = get_agent(env,net_arch='MLP',hs=hs,policy_mode=policy_mode)
 
     # set network for actor
     net = agent.pi
