@@ -191,7 +191,7 @@ def setup_agent_env(env_name, max_steps=None, hs=[12]*2,policy_mode='determinist
 
     return agent,env,net
 
-def make_rl_j_fn(env_name,max_steps=200, hs=[12]*2, scale=1):
+def make_rl_j_fn(env_name,max_steps=200, hs=[12]*2, scale=1, policy_mode='deterministic'):
     """
     Reinforcement Learning
 
@@ -207,7 +207,7 @@ def make_rl_j_fn(env_name,max_steps=200, hs=[12]*2, scale=1):
         J        -- function whose input is xi a vector of size d and output is reward
         d        -- number of network parameters associated with policy
     """
-    a,e,n = setup_agent_env(env_name, max_steps=max_steps,hs=hs)
+    a,e,n = setup_agent_env(env_name, max_steps=max_steps,hs=hs,policy_mode=policy_mode)
 
     # count parametrs
     d = count_vars(n)
