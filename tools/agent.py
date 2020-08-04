@@ -243,19 +243,18 @@ class StochasticAgent:
     Stochastic Agent class
     """
     def __init__(self,env,net_arch,**kwargs):
+        # network architecture
+        self.net_arch = net_arch
+
         # get environment info
         self.env_info = get_env_info(env)
         
         # get network and policy options
         if self.env_info['action_space'] == 'Box':
             net, piopts = make_policy('stochastic',self.env_info,net_arch,std=0.05,**kwargs)
-            print('Here we are making piopts . . . ')
-            print(piopts)
         else:
             net, piopts = make_policy('stochastic',self.env_info,net_arch,**kwargs)
 
-
-        print(piopts)
         # set policy network 
         self.pi = net
         self.pikwargs = piopts
@@ -270,37 +269,36 @@ class StochasticAgent:
     def _distribution(self,policy_input):
         if self.env_info['action_space'] == 'Box':
             mu = self.pi(policy_input)
-            print('\noutput of policy')
-            print(mu)
             std = self.pikwargs['std']
             return Normal(mu, std)
         
         elif self.env_info['action_space'] == 'Discrete':
-            print('policy input')
-            print(policy_input)
             p = self.pi(policy_input)
             return Categorical(probs=p)
 
     def act(self,obs):
         p_in = self._policy_input(obs)
-        #print('p_in is')
-        #print(p_in)
         p_out = self._distribution(p_in).sample()
-        #print('sampled_value is')
-        #print(p_out)
         a = p_out.detach().numpy()[0]
-        #print('chosen action is')
-        #print(a)
-        # sample an action from distribution
-        #a = self._distribution(self._policy_input(obs)).sample()
         # return a in numpy form
         return a
+
+    def __repr__(self):
+        s =  "StochasticAgent(\n"
+        s += f"  net_arch: {self.net_arch} \n"
+        s += f"  observation_space: {self.env_info['observation_space']} {self.env_info['observation_dim']}\n"
+        s += f"  action_space: {self.env_info['action_space']} {self.env_info['action_dim']} \n"
+        s += ")"
+        return s
 
 class DeterministicAgent:
     """
     Deterministic Agent class
     """
     def __init__(self,env,net_arch,**kwargs):
+        # network architecture
+        self.net_arch = net_arch
+
         # get environment info
         self.env_info = get_env_info(env)
 
@@ -329,7 +327,15 @@ class DeterministicAgent:
             _,a = p.max(1)
             return int(a)
 
-def get_agent(env,net_arch='MLP',hs=[12]*2,activation=None,policy_mode='deterministic'):
+    def __repr__(self):
+        s =  "DeterministicAgent(\n"
+        s += f"  net_arch: {self.net_arch} \n"
+        s += f"  observation_space: {self.env_info['observation_space']} {self.env_info['observation_dim']}\n"
+        s += f"  action_space: {self.env_info['action_space']} {self.env_info['action_dim']} \n"
+        s += ")"
+        return s
+
+def get_agent(env,net_arch='MLP',hs=[12]*2,activation=nn.Tanh(),policy_mode='deterministic'):
     """get correct agent based on the kind of action space"""
     # seeding of neural networks is controlled here
     # TODO should the seeding be included here?
