@@ -608,7 +608,7 @@ def asgf_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8],policy
     scribe.exp_num = exp_num
 
     # generate reward function
-    J,d = make_rl_j_fn(env_name, hs=net_layers)
+    J,d = make_rl_j_fn(env_name, hs=net_layers,policy_mode=policy_mode)
 
     # setup agent
     agent,env,net = setup_agent_env(env_name,hs=net_layers,policy_mode=policy_mode)
