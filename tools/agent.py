@@ -1,10 +1,10 @@
 import numpy as np
 import scipy.signal
 from gym.spaces import Box, Discrete
-
 import torch
-import torch.nn as nn
-from torch.distributions.normal import Normal
+import torch.nn as nn 
+from torch.distributions.normal import Normal 
+from torch.distributions.categorical import Categorical
 
 class TanhMod(nn.Module):
 
@@ -17,7 +17,6 @@ class TanhMod(nn.Module):
         scale = (self.high - self.low)/2
         mid_point = (self.high + self.low)/2
         return scale*torch.tanh(input) + mid_point
-
 
 class MLP(nn.Module):
     def __init__(self,**pikwargs):
@@ -81,207 +80,265 @@ class MLP(nn.Module):
         for p in self.parameters():
             p.requires_grad = False
 
-class Agent:
+def box_space_info(space,mode):
+    """get information for a continuous openAI space
+
+    Args:
+        space (gym.spaces.Box): a openAI space
+        mode (str): either an 'action' space or an 'observation' space
+
+    Returns:
+        dictionary contain info on the space
     """
-    general agent class
-    """
-    def __init__(self,env):
-        self.hid_width = 8
-        self.pikwargs = {
-                         'layers': 2,
-                         'hidden_sizes':self.hid_width*2,
-                         'requires_grad': False
-                        }
-        self.pi = None
+    # low and high values
+    low = space.low
+    high = space.high
 
-    def act(self, obs):
-        raise NotImplementedError
-
-class MLPTextAgent(Agent):
-    """
-    agent for discrete action spaces
-    """
-    def __init__(self,env,hs=None,activation=None):
-        super().__init__(env)
-        
-        # set up pikwargs
-        self.policy_setup(env)
-
-        # update hidden layer widths if need be
-        if hs:
-            self.pikwargs['hidden_sizes'] = hs
-
-        # update hidden layer activation function
-        if activation:
-            self.pikwargs['activation'] = activation
-
-        # create parameterized policy
-        self.pi = MLP(**self.pikwargs)
-
-    def act(self,obs):
-        p = self.pi(torch.from_numpy(obs).view(1,-1).float())
-        _,a = p.max(1)
-        return int(a)
-
-    def policy_setup(self,env):
-        self.pikwargs.update(
-                             {
-                              'activation': nn.Tanh(),
-                              'output_act': nn.Softmax(dim=1),
-                              'input_dim': env.observation_space.n,
-                              'output_dim': env.action_space.n,
-                             }
-                            )
-
-
-
-class MLPDiscreteAgent(Agent):
-    """
-    agent for discrete action spaces
-    """
-    def __init__(self,env,hs=None,activation=None):
-        super().__init__(env)
-        
-        # set up pikwargs
-        self.policy_setup(env)
-
-        # update hidden layer widths if need be
-        if hs:
-            self.pikwargs['hidden_sizes'] = hs
-
-        # update hidden layer activation function
-        if activation:
-            self.pikwargs['activation'] = activation
-
-        # create parameterized policy
-        self.pi = MLP(**self.pikwargs)
-
-    def act(self,obs):
-        p = self.pi(torch.from_numpy(obs).view(1,-1).float())
-        _,a = p.max(1)
-        return int(a)
-
-    def policy_setup(self,env):
-        self.pikwargs.update(
-                             {
-                              'activation': nn.Tanh(),
-                              'output_act': nn.Softmax(dim=1),
-                              'input_dim': env.observation_space.shape[0],
-                              'output_dim': env.action_space.n,
-                             }
-                            )
-
-
-class MLPContinuousAgent(Agent):
-    """
-    agent for continuous actions spaces
-    """
-    def __init__(self,env,hs=None,activation=None):
-        super().__init__(env)
-        
-        # setup pikwargs
-        self.low = env.action_space.low
-        self.high = env.action_space.high
-        self.policy_setup(env)
-
-        # update hidden layer widths if need be
-        if hs:
-            self.pikwargs['hidden_sizes'] = hs
-
-        # update activation function
-        if activation:
-            self.pikwargs['activation'] = activation
-        
-        # make policy network
-        self.pi = MLP(**self.pikwargs)
-
-    def act(self,obs):
-        p = self.pi(torch.from_numpy(obs).view(1,-1).float())
-        return p.numpy().flatten()
-
-    def policy_setup(self,env):
-        self.pikwargs.update(
-                             {
-                              'activation': nn.Tanh(),
-                              #'output_act': TanhMod(self.low,self.high),
-                              'output_act': nn.Identity(),
-                              'input_dim': env.observation_space.shape[0],
-                              'output_dim': env.action_space.shape[0],
-                             }
-                            )
-
-class MLPGaussianAgent(Agent):
-    """
-    agent for continuous action space that uses a Gaussian
-    """
-    def __init__(self,env,hs=None,activation=None):
-        super().__init__(env)
-        
-        # setup pikwargs
-        self.low = env.action_space.low
-        self.high = env.action_space.high
-        self.policy_setup(env)
-
-        # update hidden layer widths if need be
-        if hs:
-            self.pikwargs['hidden_sizes'] = hs
-
-        # update activation function
-        if activation:
-            self.pikwargs['activation'] = activation
-        
-        # make policy network
-        self.pi = MLP(**self.pikwargs)
-
-        # make parameters for standard devation)
-        init_sigma = 0.05
-        self.std = nn.Parameter(init_sigma*torch.ones(self.pikwargs['input_dim']))
-
-    def act(self,obs):
-        # sample network for mean
-        mu = self.pi(torch.from_numpy(obs).view(1,-1).float())
-        # update normal distribution
-        dist = Normal(mu.view(-1),self.std)
-        # sample from normal distribution
-        p = dist.sample()
-        return p.numpy()
-
-    def policy_setup(self,env):
-        self.pikwargs.update(
-                             {
-                              'activation': nn.Tanh(),
-                              #'output_act': TanhMod(self.low,self.high),
-                              'output_act': nn.Identity(),
-                              'input_dim': env.observation_space.shape[0],
-                              'output_dim': env.action_space.shape[0],
-                             }
-                            )
-
-def get_agent(env,hs=[8]*2,activation=None,policy_mode='deterministic'):
-    """
-    get correct agent based on the kind of action space
-    """
-    torch.manual_seed(0)
-   
-    if policy_mode == 'prob':
-        return MLPGaussianAgent(env,hs=hs,activation=activation)
+    # dimension
+    dim = space.shape[0]
     
-    if policy_mode == 'deterministic':
+    # setup keys for dictionary
+    mode_dim = mode + '_dim'
+    mode_low = mode + '_low'
+    mode_high = mode + '_high'
+    mode_space_type = mode + '_space'
 
-        if (type(env.observation_space) == Discrete) and (type(env.action_space) == Discrete):
-            return MLPTextAgent(env,hs=hs,activation=activation)
+    # dictionary to return
+    info = {mode_dim:dim,mode_space_type:'Box',mode_low:low,mode_high:high}
 
-        elif env.action_space.__class__ == Box:
-            # continuous agent
-            #print('Making MLPContinuousAgent')
-            return MLPContinuousAgent(env,hs=hs,activation=activation)
+    return info
 
-        elif env.action_space.__class__ == Discrete:
-            # discrete agent
-            #print('Making MLPDiscreteAgent')
-            return MLPDiscreteAgent(env,hs=hs,activation=activation)
+def discrete_space_info(space,mode):
+    """get information for a discrete openAI space
 
+    Args:
+        space (gym.spaces.Discrete): a openAI space
+        mode (str): either an 'action' space or 'observation' space
+
+    Returns:
+        dictionary contain info on the space
+    """
+    # dimension
+    dim = space.n
+        
+    # setup keys for dictionary
+    mode_dim = mode + '_dim'
+    mode_space_type = mode + '_space'
+
+    # dictionary to return
+    info = {mode_dim:dim,mode_space_type:'Discrete'}
+
+    return info
+
+def get_env_info(env,**kwargs):
+    """setup dictionary with info on environment"""
+
+    def check_space(space,env,mode):
+        if type(space) == Box:
+            info = box_space_info(space,mode)
+        elif type(space) == Discrete:
+            info = discrete_space_info(space,mode)
         else:
-            raise ValueError('Cannot get Agent for invalid action space type.')
+            raise ValueError(f'the env {env} has unknown {mode} space {str(space)}.')
 
+        return info
+
+    # check observation space to set up input
+    input_space = env.observation_space
+    input_info = check_space(input_space,str(env),'observation')
+    
+    # check action space to set up output
+    output_space = env.action_space
+    output_info = check_space(output_space,str(env),'action')
+
+    # collect additional info
+    envkwargs = kwargs
+    envkwargs['name'] = str(env)
+
+    # collect all info into one dictionary
+    envkwargs.update(input_info)
+    envkwargs.update(output_info)
+
+    return envkwargs
+
+def get_mlp_info(input_dim,output_dim,**kwargs):
+    # setup defaults
+    mlpkwargs = {
+        'layers':2,
+        'hidden_sizes':2*[12],
+        'activation':nn.Tanh(),
+        'output_act':nn.Identity(),
+        'input_dim':input_dim,
+        'output_dim':output_dim
+    }
+
+    # update if necessary
+    kw_set = set(kwargs)
+    allowed_kw = kw_set.intersection(mlpkwargs)
+    for kw in allowed_kw:
+        mlpkwargs[kw] = kwargs[kw]
+   
+    if 'std' in kwargs:
+        mlpkwargs['std'] = kwargs['std']
+
+    return mlpkwargs
+
+def make_policy(mode,env_info,net_arch='MLP',**kwargs):
+    """make a policy network given the mode and env_info
+       
+    Args:
+        mode (str): either 'deterministic' or 'stochastic'
+        env_info (dict): dictionary of information about the environment
+        **kwargs (dict): misc other info that might be necessary
+
+    Returns:
+        net (torch.nn.Module): neural network for paramterizing the policy
+    """
+    
+    def make_net(net_arch):
+        """makes a network based on environment and pi variables
+
+        Args:
+            net_arch (str): string indicating what kind of archtecture the network 
+                should have
+
+        Returns:
+            a pytorch network with appropriate configuration
+        """   
+
+        #TODO add support for other architectures ONLY SUPPORTS MLP now
+        if net_arch == 'MLP':
+            # get input and output dimension
+            input_dim = env_info['observation_dim']
+            output_dim = env_info['action_dim']
+            
+            # check mode
+            if mode == 'deterministic':
+                output_act = nn.Identity()
+            elif mode == 'stochastic':
+                if env_info['action_space'] == 'Box':
+                    output_act = nn.Identity()
+                elif env_info['action_space'] == 'Discrete':
+                    output_act = nn.Softmax(dim=1)
+                else:
+                    raise ValueError(f"Cannot make policy. Unknown action_space for environment {env_info['name']}")
+            else:
+                raise ValueError(f'Cannot make policy. Unknown mode {mode}')
+
+            # setup info
+            info = get_mlp_info(input_dim,output_dim,output_act=output_act,**kwargs)
+            
+            # instantiate network
+            net = MLP(**info)
+
+        return net, info
+    
+    # instantiate network and get dictionary of paramters
+    net, pikwargs = make_net(net_arch) 
+
+    return net, pikwargs
+
+class StochasticAgent:
+    """
+    Stochastic Agent class
+    """
+    def __init__(self,env,net_arch,**kwargs):
+        # get environment info
+        self.env_info = get_env_info(env)
+        
+        # get network and policy options
+        if self.env_info['action_space'] == 'Box':
+            net, piopts = make_policy('stochastic',self.env_info,net_arch,std=0.05,**kwargs)
+            print('Here we are making piopts . . . ')
+            print(piopts)
+        else:
+            net, piopts = make_policy('stochastic',self.env_info,net_arch,**kwargs)
+
+
+        print(piopts)
+        # set policy network 
+        self.pi = net
+        self.pikwargs = piopts
+
+    def _policy_input(self,obs):
+        """converts observation into policy input"""
+        if self.env_info['observation_space'] == 'Box':
+            return torch.from_numpy(obs).view(1,-1).float()
+        elif self.env_info['observation_space'] == 'Discrete':
+            return torch.eye(self.env_info['observation_dim'])[obs].view(1,-1).float()
+
+    def _distribution(self,policy_input):
+        if self.env_info['action_space'] == 'Box':
+            mu = self.pi(policy_input)
+            print('\noutput of policy')
+            print(mu)
+            std = self.pikwargs['std']
+            return Normal(mu, std)
+        
+        elif self.env_info['action_space'] == 'Discrete':
+            print('policy input')
+            print(policy_input)
+            p = self.pi(policy_input)
+            return Categorical(probs=p)
+
+    def act(self,obs):
+        p_in = self._policy_input(obs)
+        #print('p_in is')
+        #print(p_in)
+        p_out = self._distribution(p_in).sample()
+        #print('sampled_value is')
+        #print(p_out)
+        a = p_out.detach().numpy()[0]
+        #print('chosen action is')
+        #print(a)
+        # sample an action from distribution
+        #a = self._distribution(self._policy_input(obs)).sample()
+        # return a in numpy form
+        return a
+
+class DeterministicAgent:
+    """
+    Deterministic Agent class
+    """
+    def __init__(self,env,net_arch,**kwargs):
+        # get environment info
+        self.env_info = get_env_info(env)
+
+        # get network and policy options
+        net, piopts = make_policy('deterministic',self.env_info,net_arch,**kwargs)
+
+        # set policy network
+        self.pi = net
+        self.pikwargs = piopts
+
+    def _policy_input(self,obs):
+        """converts observation into policy input"""
+        if self.env_info['observation_space'] == 'Box':
+            return torch.from_numpy(obs).view(1,-1).float()
+        elif self.env_info['observation_space'] == 'Discrete':
+            return torch.eye(self.env_info['observation_dim'])[obs].view(1,-1).float()
+
+    def act(self,obs):
+        if self.env_info['action_space'] == 'Box':
+            # query to network for an action
+            a = self.pi(self._policy_input(obs))
+            # return a in numpy form
+            return a.detach().numpy()[0]
+        elif self.env_info['action_space'] == 'Discrete':
+            p = self.pi(self._policy_input(obs))
+            _,a = p.max(1)
+            return int(a)
+
+def get_agent(env,net_arch='MLP',hs=[12]*2,activation=None,policy_mode='deterministic'):
+    """get correct agent based on the kind of action space"""
+    # seeding of neural networks is controlled here
+    # TODO should the seeding be included here?
+    torch.manual_seed(0)
+
+    if policy_mode == 'deterministic':
+        # build a deterministic agent
+        return DeterministicAgent(env,net_arch,hs=hs,activation=activation)
+    elif policy_mode == 'stochastic':
+        # build a stochastic agent
+        return StochasticAgent(env,net_arch,hs=hs,activation=activation)
 
