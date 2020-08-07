@@ -12,7 +12,7 @@ from tools.agent import get_agent
 def count_vars(module):
     return sum([np.prod(p.shape) for p in module.parameters()])
 
-def simulate_reward(agent, env, itr, max_steps=200, scale=1, num_eps=1):
+def simulate_reward(agent, env, itr, max_steps=200, scale=1, num_eps=10):
     """
     Inputs:
         agent     -- MLPAgent
@@ -25,7 +25,7 @@ def simulate_reward(agent, env, itr, max_steps=200, scale=1, num_eps=1):
     env_steps = {
                    'Pendulum-v0':200,
                    'CartPole-v0':200,
-                   'MountainCarContinuous-v0':999,
+                   'MountainCarContinuous-v0':1000,
                    'HopperBulletEnv-v0':1000,
                    'InvertedPendulumBulletEnv-v0':1000,
                    'ReacherBulletEnv-v0':150,
@@ -182,6 +182,8 @@ def setup_agent_env(env_name, max_steps=None, hs=[12]*2,policy_mode='determinist
 
     # make environemnt
     env = gym.make(env_name)
+    env._max_episode_steps = 10000
+    print(policy_mode)
 
     # create agent
     agent = get_agent(env,net_arch='MLP',hs=hs,policy_mode=policy_mode)
@@ -191,7 +193,7 @@ def setup_agent_env(env_name, max_steps=None, hs=[12]*2,policy_mode='determinist
 
     return agent,env,net
 
-def make_rl_j_fn(env_name,max_steps=200, hs=[12]*2, scale=1):
+def make_rl_j_fn(env_name,max_steps=200, hs=[12]*2, scale=1, policy_mode='deterministic'):
     """
     Reinforcement Learning
 
@@ -207,7 +209,7 @@ def make_rl_j_fn(env_name,max_steps=200, hs=[12]*2, scale=1):
         J        -- function whose input is xi a vector of size d and output is reward
         d        -- number of network parameters associated with policy
     """
-    a,e,n = setup_agent_env(env_name, max_steps=max_steps,hs=hs)
+    a,e,n = setup_agent_env(env_name, max_steps=max_steps,hs=hs, policy_mode=policy_mode)
 
     # count parametrs
     d = count_vars(n)

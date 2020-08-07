@@ -8,6 +8,7 @@ import argparse
 from mpi4py import MPI
 from algorithms.asgf import asgf_parallel_train
 from algorithms.dgs import dgs_parallel_train
+from algorithms.es import es_parallel_train
 
 def get_maxiter(env_name):
     """get the maximum number of iterations to run the solver
@@ -19,7 +20,7 @@ def get_maxiter(env_name):
                    'InvertedPendulumBulletEnv-v0':100,
                    'Acrobot-v1':200,
                    'CartPole-v1':100,
-                   'MountainCarContinuous-v0':500,
+                   'MountainCarContinuous-v0':100,
                    'HopperBulletEnv-v0':400,
                    'ReacherBulletEnv-v0':150,
                 }
@@ -53,7 +54,7 @@ if __name__ == "__main__":
                          type=lambda x: [int(item) for item in x.split(',')],
                          default=[8,8],
                          help='list of ints for hidden layer sizes')
-    
+
     # policy mode
     parser.add_argument('--policy_mode',
                          default='deterministic',
@@ -69,12 +70,12 @@ if __name__ == "__main__":
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
-    
+
     if args.algo == 'asgf':
         if rank == 0:
             # print some info
             print(f"Begin Training for {args.env_name} using {args.algo} with {size} workers")
-        
+
         # train agent
         asgf_parallel_train(rank, int(args.seed), args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
 
@@ -82,8 +83,16 @@ if __name__ == "__main__":
         if rank == 0:
             # print some info
             print(f"Begin Training for {args.env_name} using {args.algo} with {size} workers")
-        
+
         # train agent
         dgs_parallel_train(rank, int(args.seed), args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
+
+    elif args.algo == 'es':
+        if rank == 0:
+            # print some info
+            print(f"Begin Training for {args.env_name} using {args.algo} with {size} workers")
+
+        # train agent
+        es_parallel_train(rank, int(args.seed), args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
 
 
