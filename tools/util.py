@@ -12,7 +12,7 @@ from tools.agent import get_agent
 def count_vars(module):
     return sum([np.prod(p.shape) for p in module.parameters()])
 
-def simulate_reward(agent, env, itr, max_steps=200, scale=1, num_eps=1):
+def simulate_reward(agent, env, itr, max_steps=200, scale=1, num_eps=10):
     """
     Inputs:
         agent     -- MLPAgent
@@ -182,6 +182,7 @@ def setup_agent_env(env_name, max_steps=None, hs=[12]*2,policy_mode='determinist
 
     # make environemnt
     env = gym.make(env_name)
+    env._max_episode_steps = 10000
 
     # create agent
     agent = get_agent(env,net_arch='MLP',hs=hs,policy_mode=policy_mode)
