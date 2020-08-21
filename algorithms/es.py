@@ -303,7 +303,7 @@ def es_parallel(fun,x0,
 
 
 
-def es_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8.8],policy_mode='deterministic'):
+def es_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8],policy_mode='deterministic'):
     """
     train an agent to solve the env_name task using
     es optimization
@@ -330,9 +330,10 @@ def es_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8.8],policy_m
 
     if rank == 0:
         print('problem dimensionality:', d)
+        print('net_layers =', net_layers)
         print('iteration   0: reward = {:6.2f}'.format(J(w0,1)))
 
     # run es parallel implementation
-    w, itr = es_parallel(lambda w,i: -J(w,i), w0, scribe=scribe, maxiter=maxiter)
+    w, itr = es_parallel(lambda w,i: -J(w,i), w0, N=1500, scribe=scribe, maxiter=maxiter)
 
 

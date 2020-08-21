@@ -165,7 +165,7 @@ def get_mlp_info(input_dim,output_dim,**kwargs):
     # setup defaults
     mlpkwargs = {
         'layers':2,
-        'hidden_sizes':2*[12],
+        'hidden_sizes':2*[8],
         'activation':nn.Tanh(),
         'output_act':nn.Identity(),
         'input_dim':input_dim,
@@ -335,7 +335,7 @@ class DeterministicAgent:
         s += ")"
         return s
 
-def get_agent(env,net_arch='MLP',hs=[12]*2,activation=nn.Tanh(),policy_mode='deterministic'):
+def get_agent(env,net_arch='MLP',hs=[8]*2,activation=nn.Tanh(),policy_mode='deterministic'):
     """get correct agent based on the kind of action space"""
     # seeding of neural networks is controlled here
     # TODO should the seeding be included here?

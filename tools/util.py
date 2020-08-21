@@ -165,7 +165,7 @@ def rl_j_eval(agent,env,net,xi,eval_f):
 
     return r
 
-def setup_agent_env(env_name, max_steps=None, hs=[12]*2,policy_mode='deterministic'):
+def setup_agent_env(env_name, max_steps=None, hs=[8]*2,policy_mode='deterministic'):
     """
     sets up environment given env_name string
 
@@ -192,7 +192,7 @@ def setup_agent_env(env_name, max_steps=None, hs=[12]*2,policy_mode='determinist
 
     return agent,env,net
 
-def make_rl_j_fn(env_name,max_steps=200, hs=[12]*2, scale=1,policy_mode='deterministic'):
+def make_rl_j_fn(env_name,max_steps=200, hs=[8]*2, scale=1,policy_mode='deterministic'):
     """
     Reinforcement Learning
 
