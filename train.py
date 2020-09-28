@@ -9,6 +9,7 @@ from mpi4py import MPI
 from algorithms.asgf import asgf_parallel_train
 from algorithms.dgs import dgs_parallel_train
 from algorithms.es import es_parallel_train
+from algorithms.cma import cma_train
 
 def get_maxiter(env_name):
     """get the maximum number of iterations to run the solver
@@ -75,7 +76,6 @@ if __name__ == "__main__":
         if rank == 0:
             # print some info
             print(f"Begin Training for {args.env_name} using {args.algo} with {size} workers")
-
         # train agent
         asgf_parallel_train(rank, int(args.seed), args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
 
@@ -83,7 +83,6 @@ if __name__ == "__main__":
         if rank == 0:
             # print some info
             print(f"Begin Training for {args.env_name} using {args.algo} with {size} workers")
-
         # train agent
         dgs_parallel_train(rank, int(args.seed), args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
 
@@ -91,8 +90,9 @@ if __name__ == "__main__":
         if rank == 0:
             # print some info
             print(f"Begin Training for {args.env_name} using {args.algo} with {size} workers")
-
         # train agent
         es_parallel_train(rank, int(args.seed), args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
+
+
 
 

@@ -217,7 +217,7 @@ def dgs_master(comm,L,rank,fun, x0,
 
         # scribe record the progress
         scribe.record_iteration_data(iteration=i+1,reward=-new_val,inf_norm_diff=np.amax(np.abs(np.abs(lr*df))))
-        print(f"v4 iteration {i+1:3d} | reward = {-fun(x,i):6.5f} | inf-norm-diff = {np.amax(np.abs(lr*df)):4.5e}")
+        print(f"v4 iteration {i+1:3d} | reward = {-new_val:6.5f} | inf-norm-diff = {np.amax(np.abs(lr*df)):4.5e}")
 
         # test if we have found new best value
         if new_val < best_val:

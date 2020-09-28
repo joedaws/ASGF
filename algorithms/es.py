@@ -132,7 +132,7 @@ def es_master(comm,L,rank,fun, x0,
 
         # scribe record the progress
         scribe.record_iteration_data(iteration=i+1,reward=-new_val,inf_norm_diff=np.amax(np.abs(np.abs(lr*df))))
-        print(f"es-iteration {i+1:3d} | reward = {-fun(x,i):6.5f} | inf-norm-diff = {np.amax(np.abs(lr*df)):4.5e}")
+        print(f"es-iteration {i+1:3d} | reward = {-fun(x,i+exp_num):6.5f} | inf-norm-diff = {np.amax(np.abs(lr*df)):4.5e}")
 
         # test if we have found new best value
         if new_val < best_val:
@@ -334,6 +334,6 @@ def es_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8],policy_m
         print('iteration   0: reward = {:6.2f}'.format(J(w0,1)))
 
     # run es parallel implementation
-    w, itr = es_parallel(lambda w,i: -J(w,i), w0, N=1500, scribe=scribe, maxiter=maxiter)
+    w, itr = es_parallel(lambda w,i: -J(w,i), w0, N=1000, scribe=scribe, maxiter=maxiter)
 
 

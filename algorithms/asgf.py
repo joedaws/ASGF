@@ -338,12 +338,12 @@ def asgf_master(comm,L,rank,fun, x0, s0, scribe = RLScribe('data_adgs','unknown'
         df = np.matmul(dg, u)
 
         # average Lipschitz constant along the main direction
-        L_avg = L_loc[0] if L_avg == 0 else (1 - L_lmb) * L_loc[0] + L_lmb * L_avg
-        #L_avg = (1 - L_lmb) * L_loc[0] + L_lmb * L_avg
+        #L_avg = L_loc[0] if itr == 0 else (1 - L_lmb) * L_loc[0] + L_lmb * L_avg
+        L_avg = (1 - L_lmb) * L_loc[0] + L_lmb * L_avg
 
         # select learning rate
-        lr = np.clip(s/10, lr_min, lr_max)
-        #lr = np.clip(s/L_avg, lr_min, lr_max)
+        #lr = np.clip(s/10, lr_min, lr_max)
+        lr = np.clip(s/L_avg, lr_min, lr_max)
 
         # TODO: do we need ADAM updates or not?
         # perform step
@@ -620,8 +620,17 @@ def asgf_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8],policy
         print('problem dimensionality:', d)
         print('iteration   0: reward = {:6.2f}'.format(J(w0,1)))
 
+    # approximate Lipschitz constant
+    L = {'Pendulum-v0': 10,
+         'InvertedPendulumBulletEnv-v0': 10,
+         'Acrobot-v1': 10}
+
     # run dgs parallel implementation
-    asgf_args = dict(s0=np.sqrt(d)/10, s_rate=.99, m_min=5, m_max=21, L_avg=0, L_lmb=.9,\
+#    asgf_args = dict(s0=np.sqrt(d)/10, s_rate=.99, m_min=5, m_max=21, L_avg=L[env_name], L_lmb=1,\
+#                     A_grad=np.inf, B_grad=np.inf,\
+#                     s_min=.01, s_max=100, lr_min=.001, lr_max=10, restart=False,\
+#                     maxiter=maxiter, xtol=1e-06, verbose=3, optimizer='adam')
+    asgf_args = dict(s0=np.sqrt(2), s_rate=1., m_min=5, m_max=21, L_avg=L[env_name], L_lmb=1,\
                      A_grad=np.inf, B_grad=np.inf,\
                      s_min=.01, s_max=100, lr_min=.001, lr_max=10, restart=False,\
                      maxiter=maxiter, xtol=1e-06, verbose=3, optimizer='adam')
