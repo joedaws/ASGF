@@ -17,7 +17,7 @@ def get_maxiter(env_name):
     """
     DEFAULT_ITS = 200
     max_its = {
-                   'Pendulum-v0':200,
+                   'Pendulum-v0':400,
                    'InvertedPendulumBulletEnv-v0':100,
                    'Acrobot-v1':200,
                    'CartPole-v1':100,
@@ -72,27 +72,45 @@ if __name__ == "__main__":
     size = comm.Get_size()
     rank = comm.Get_rank()
 
-    if args.algo == 'asgf':
+    # #if args.algo == 'asgf':
+        # #if rank == 0:
+            # ## print some info
+            # #print(f"Begin Training for {args.env_name} using {args.algo} with {size} workers")
+        # ## train agent
+        # #asgf_parallel_train(rank, int(args.seed), args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
+
+    # #elif args.algo == 'dgs':
+        # #if rank == 0:
+            # ## print some info
+            # #print(f"Begin Training for {args.env_name} using {args.algo} with {size} workers")
+        # ## train agent
+        # #dgs_parallel_train(rank, int(args.seed), args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
+
+    # #elif args.algo == 'es':
+        # #if rank == 0:
+            # ## print some info
+            # #print(f"Begin Training for {args.env_name} using {args.algo} with {size} workers")
+        # ## train agent
+        # #es_parallel_train(rank, int(args.seed), args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
+
+    # #elif args.algo == 'cma':
+        # #if rank == 0:
+            # ## print some info
+            # #print(f"Begin Training for {args.env_name} using {args.algo} with 1 worker")
+        # ## train agent
+        # #cma_train(rank, int(args.seed), args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
+
+    exp_num = 10
+    for s in range(1, exp_num+1):
         if rank == 0:
-            # print some info
-            print(f"Begin Training for {args.env_name} using {args.algo} with {size} workers")
-        # train agent
-        asgf_parallel_train(rank, int(args.seed), args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
-
-    elif args.algo == 'dgs':
-        if rank == 0:
-            # print some info
-            print(f"Begin Training for {args.env_name} using {args.algo} with {size} workers")
-        # train agent
-        dgs_parallel_train(rank, int(args.seed), args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
-
-    elif args.algo == 'es':
-        if rank == 0:
-            # print some info
-            print(f"Begin Training for {args.env_name} using {args.algo} with {size} workers")
-        # train agent
-        es_parallel_train(rank, int(args.seed), args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
-
-
+            print('\nRunning experiment {:2d} / {:2d}'.format(s, exp_num))
+        if args.algo == 'asgf':
+            asgf_parallel_train(rank, s, args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
+        elif args.algo == 'dgs':
+            dgs_parallel_train(rank, s, args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
+        elif args.algo == 'es':
+            es_parallel_train(rank, s, args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
+        elif args.algo == 'cma':
+            cma_train(rank, s, args.env_name, maxiter, hidden_layers=args.hidden_sizes, policy_mode=args.policy_mode)
 
 

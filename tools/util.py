@@ -192,7 +192,7 @@ def setup_agent_env(env_name, max_steps=None, hs=[8]*2,policy_mode='deterministi
 
     return agent,env,net
 
-def make_rl_j_fn(env_name,max_steps=200, hs=[8]*2, scale=1,policy_mode='deterministic'):
+def make_rl_j_fn(env_name, max_steps=200, hs=[8]*2, scale=1, policy_mode='deterministic'):
     """
     Reinforcement Learning
 

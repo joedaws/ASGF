@@ -66,7 +66,7 @@ class RLScribe(Scribe):
         _arch_type -- type of network architecture to be used in run of experiments
     """
 
-    def __init__(self,save_root,env_name,arch_type):
+    def __init__(self, save_root, env_name, arch_type, alg_name='exp'):
         # root directory
         self._save_root = save_root
 
@@ -75,6 +75,9 @@ class RLScribe(Scribe):
 
         # network architecture type
         self._arch_type = arch_type
+
+        # name of the algorithm
+        self._alg_name = alg_name
 
         # experiment counter
         self._exp_num = 0
@@ -94,7 +97,7 @@ class RLScribe(Scribe):
         
         exp_num = self._exp_num 
         # file path
-        path_to_csv = f"{self._save_root}/{self._env_name}/{self._arch_type}/results/exp.{exp_num}.csv"
+        path_to_csv = f"{self._save_root}/{self._env_name}/{self._arch_type}/results/{self._alg_name}.{exp_num}.csv"
 
         if kwargs['iteration'] == 1:
             self.write(path_to_csv,mode='new',**kwargs)
@@ -106,7 +109,7 @@ class RLScribe(Scribe):
         path_to_metadata = <save_root>/<environment_name>/<network_architecture>/<results>/
         """
         exp_num = self._exp_num
-        path_to_meta = f"{self._save_root}/{self._env_name}/{self._arch_type}/results/metadata.exp.{exp_num}.csv"
+        path_to_meta = f"{self._save_root}/{self._env_name}/{self._arch_type}/results/metadata.{self._alg_name}.{exp_num}.csv"
         
         self.write(path_to_meta,mode='new',**kwargs)
 

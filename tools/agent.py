@@ -2,8 +2,8 @@ import numpy as np
 import scipy.signal
 from gym.spaces import Box, Discrete
 import torch
-import torch.nn as nn 
-from torch.distributions.normal import Normal 
+import torch.nn as nn
+from torch.distributions.normal import Normal
 from torch.distributions.categorical import Categorical
 
 class TanhMod(nn.Module):
@@ -96,7 +96,7 @@ def box_space_info(space,mode):
 
     # dimension
     dim = space.shape[0]
-    
+
     # setup keys for dictionary
     mode_dim = mode + '_dim'
     mode_low = mode + '_low'
@@ -120,7 +120,7 @@ def discrete_space_info(space,mode):
     """
     # dimension
     dim = space.n
-        
+
     # setup keys for dictionary
     mode_dim = mode + '_dim'
     mode_space_type = mode + '_space'
@@ -146,7 +146,7 @@ def get_env_info(env,**kwargs):
     # check observation space to set up input
     input_space = env.observation_space
     input_info = check_space(input_space,str(env),'observation')
-    
+
     # check action space to set up output
     output_space = env.action_space
     output_info = check_space(output_space,str(env),'action')
@@ -177,7 +177,7 @@ def get_mlp_info(input_dim,output_dim,**kwargs):
     allowed_kw = kw_set.intersection(mlpkwargs)
     for kw in allowed_kw:
         mlpkwargs[kw] = kwargs[kw]
-   
+
     if 'std' in kwargs:
         mlpkwargs['std'] = kwargs['std']
 
@@ -185,7 +185,7 @@ def get_mlp_info(input_dim,output_dim,**kwargs):
 
 def make_policy(mode,env_info,net_arch='MLP',**kwargs):
     """make a policy network given the mode and env_info
-       
+
     Args:
         mode (str): either 'deterministic' or 'stochastic'
         env_info (dict): dictionary of information about the environment
@@ -194,24 +194,24 @@ def make_policy(mode,env_info,net_arch='MLP',**kwargs):
     Returns:
         net (torch.nn.Module): neural network for paramterizing the policy
     """
-    
+
     def make_net(net_arch):
         """makes a network based on environment and pi variables
 
         Args:
-            net_arch (str): string indicating what kind of archtecture the network 
+            net_arch (str): string indicating what kind of archtecture the network
                 should have
 
         Returns:
             a pytorch network with appropriate configuration
-        """   
+        """
 
         #TODO add support for other architectures ONLY SUPPORTS MLP now
         if net_arch == 'MLP':
             # get input and output dimension
             input_dim = env_info['observation_dim']
             output_dim = env_info['action_dim']
-            
+
             # check mode
             if mode == 'deterministic':
                 output_act = nn.Identity()
@@ -227,14 +227,14 @@ def make_policy(mode,env_info,net_arch='MLP',**kwargs):
 
             # setup info
             info = get_mlp_info(input_dim,output_dim,output_act=output_act,**kwargs)
-            
+
             # instantiate network
             net = MLP(**info)
 
         return net, info
-    
+
     # instantiate network and get dictionary of paramters
-    net, pikwargs = make_net(net_arch) 
+    net, pikwargs = make_net(net_arch)
 
     return net, pikwargs
 
@@ -248,14 +248,14 @@ class StochasticAgent:
 
         # get environment info
         self.env_info = get_env_info(env)
-        
+
         # get network and policy options
         if self.env_info['action_space'] == 'Box':
             net, piopts = make_policy('stochastic',self.env_info,net_arch,std=0.05,**kwargs)
         else:
             net, piopts = make_policy('stochastic',self.env_info,net_arch,**kwargs)
 
-        # set policy network 
+        # set policy network
         self.pi = net
         self.pikwargs = piopts
 
@@ -271,7 +271,7 @@ class StochasticAgent:
             mu = self.pi(policy_input)
             std = self.pikwargs['std']
             return Normal(mu, std)
-        
+
         elif self.env_info['action_space'] == 'Discrete':
             p = self.pi(policy_input)
             return Categorical(probs=p)

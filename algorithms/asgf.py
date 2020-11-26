@@ -604,7 +604,7 @@ def asgf_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8],policy
     root_save = 'data/asgf'
     env_name = env_name
     arch_type = hs_to_str(net_layers)
-    scribe = RLScribe(root_save,env_name,arch_type)
+    scribe = RLScribe(root_save, env_name, arch_type, alg_name='asgf')
     scribe.exp_num = exp_num
 
     # generate reward function
@@ -621,9 +621,9 @@ def asgf_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8],policy
         print('iteration   0: reward = {:6.2f}'.format(J(w0,1)))
 
     # approximate Lipschitz constant
-    L = {'Pendulum-v0': 10,
-         'InvertedPendulumBulletEnv-v0': 10,
-         'Acrobot-v1': 10}
+    L = {'Pendulum-v0': 10*np.sqrt(2),
+         'InvertedPendulumBulletEnv-v0': 10*np.sqrt(2),
+         'Acrobot-v1': 10*np.sqrt(2)}
 
     # run dgs parallel implementation
 #    asgf_args = dict(s0=np.sqrt(d)/10, s_rate=.99, m_min=5, m_max=21, L_avg=L[env_name], L_lmb=1,\

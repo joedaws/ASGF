@@ -231,7 +231,7 @@ def dgs_master(comm,L,rank,fun, x0,
 
         # update parameters
         if np.linalg.norm(df) < gtol:
-            break_flag = True
+            break_flag = False#True
         elif np.linalg.norm(df) < gamma:
             #print(f"master updating on it {i}")
             Du = np.random.random((dim,dim))
@@ -427,7 +427,7 @@ def dgs_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8.8],policy_
     root_save = 'data/dgs'
     env_name = env_name
     arch_type = hs_to_str(net_layers)
-    scribe = RLScribe(root_save,env_name,arch_type)
+    scribe = RLScribe(root_save, env_name, arch_type, alg_name='dgs')
     scribe.exp_num = exp_num
 
     # generate reward function

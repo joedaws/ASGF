@@ -309,6 +309,9 @@ def es_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8],policy_m
     es optimization
     """
 
+    # number of Monte-Carlo samples
+    num_mc = 1500
+
     # number of layers of the neural network
     net_layers = hidden_layers
 
@@ -316,7 +319,7 @@ def es_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8],policy_m
     root_save = 'data/es'
     env_name = env_name
     arch_type = hs_to_str(net_layers)
-    scribe = RLScribe(root_save,env_name,arch_type)
+    scribe = RLScribe(root_save, env_name, arch_type, alg_name='es_'+str(num_mc))
     scribe.exp_num = exp_num
 
     # generate reward function
@@ -334,6 +337,6 @@ def es_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8],policy_m
         print('iteration   0: reward = {:6.2f}'.format(J(w0,1)))
 
     # run es parallel implementation
-    w, itr = es_parallel(lambda w,i: -J(w,i), w0, N=1000, scribe=scribe, maxiter=maxiter)
+    w, itr = es_parallel(lambda w,i: -J(w,i), w0, N=num_mc, scribe=scribe, maxiter=maxiter)
 
 
