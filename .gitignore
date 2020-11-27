@@ -1,6 +1,4 @@
 .DS_Store
-data
-data/*
 *.pyc
 __pycache__
 *.csv

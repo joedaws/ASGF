@@ -12,25 +12,12 @@
 """
 import argparse
 import numpy as np
-from tools.function import target_function, stochastic_target_function, initial_guess
+from tools.function import target_function, initial_guess
 from algorithms.asgf import asgf
 from algorithms.dgs import dgs
 import cma
 from scipy.optimize import minimize
 
-def get_function(fun,dim,process,mean,std):
-    """
-    returns either stochastic or deterministic version of the function
-    """
-    if process == 'deterministic':
-        fun,x_min,x_dom = target_function(fun,dim)
-
-    elif process == 'stochastic':
-        fun,x_min,x_dom = stochastic_target_function(fun,dim,mean,std)
-    else:
-        raise ValueError(f'Invalid process {process}')
-
-    return fun,x_min,x_dom
 
 if __name__ == "__main__":
     # get arguements
@@ -51,21 +38,6 @@ if __name__ == "__main__":
     parser.add_argument('--sim',\
                          default='1',\
                          help='number of simulations (i.e. optimization tests)')
-    
-    # deterministic or stochastic
-    parser.add_argument('--process',
-                         default='deterministic',
-                         help='either deterministic or stochastic function evaluations.')
-
-    # mean of additive noise
-    parser.add_argument('--mean',
-                         default=0,
-                         help='mean of the additive noise')
-
-    # standard devation of additive noise
-    parser.add_argument('--std',
-                         default=0.05,
-                         help='standard devation of the additive noise')
 
     # parse arguements
     args = parser.parse_args()
@@ -79,7 +51,7 @@ if __name__ == "__main__":
             format(dim, args.fun, args.algo, sim_num))
         # setup optimization problem
         conv_sim, itr_num, fev_num = 0, 0, 0
-        fun, x_min, x_dom = get_function(args.fun, dim, args.process, args.mean, args.std)
+        fun, x_min, x_dom = target_function(args.fun, dim)
         s0 = np.linalg.norm(x_dom[1] - x_dom[0]) / 10
         # run optimization tests
         for k in range(sim_num):
@@ -108,7 +80,7 @@ if __name__ == "__main__":
             format(dim, args.fun, args.algo, sim_num))
         # setup optimization problem
         conv_sim, itr_num, fev_num = 0, 0, 0
-        fun, x_min, x_dom = get_function(args.fun, dim,args.process, args.mean, args.std)
+        fun, x_min, x_dom = target_function(args.fun, dim)
         dgs_params = {'ackley': {'lr': .1, 'M': 5, 'r': 5, 'beta': 1, 'gamma': .1},\
                       'levy': {'lr': .03, 'M': 17, 'r': 4, 'beta': .8, 'gamma': .001},\
                       'rastrigin': {'lr': .003, 'M': 21, 'r': 5, 'beta': 1, 'gamma': .001},\
@@ -121,7 +93,7 @@ if __name__ == "__main__":
         for k in range(sim_num):
             np.random.seed(k)
             x0 = initial_guess(x_dom)
-            x, itr_k, fev_k = dgs(fun, x0, verbose=1, **dgs_params[args.fun])
+            x, itr_k, fev_k = dgs(fun, x0, **dgs_params[args.fun])
             print('{:d}/{:d}  {:d}d-{:s}:  '.format(k+1, sim_num, dim, args.fun), end='')
             print('f = {:.2e},  {:d} iterations,  {:d} evaluations'.format(fun(x), itr_k, fev_k))
             # record stats on successful simulations
@@ -144,7 +116,7 @@ if __name__ == "__main__":
             format(dim, args.fun, args.algo, sim_num))
         # setup optimization problem
         conv_sim, itr_num, fev_num = 0, 0, 0
-        fun, x_min, x_dom = get_function(args.fun, dim, args.process, args.mean, args.std)
+        fun, x_min, x_dom = target_function(args.fun, dim)
         cma_sigma = {'ackley': 5, 'levy': 4, 'rastrigin': 5, 'branin': 1,\
                      'cross-in-tray': 2, 'dropwave': 2, 'sphere': 1}
         # run optimization tests
@@ -178,7 +150,7 @@ if __name__ == "__main__":
             format(dim, args.fun, args.algo, sim_num))
         # setup optimization problem
         conv_sim, itr_num, fev_num = 0, 0, 0
-        fun, x_min, x_dom = get_function(args.fun, dim,args.process, args.mean, args.std)
+        fun, x_min, x_dom = target_function(args.fun, dim)
         # run optimization tests
         for k in range(sim_num):
             np.random.seed(k)
@@ -210,7 +182,7 @@ if __name__ == "__main__":
             format(dim, args.fun, args.algo, sim_num))
         # setup optimization problem
         conv_sim, itr_num, fev_num = 0, 0, 0
-        fun, x_min, x_dom = get_function(args.fun, dim, args.process, args.mean, args.std)
+        fun, x_min, x_dom = target_function(args.fun, dim)
         # run optimization tests
         for k in range(sim_num):
             np.random.seed(k)
@@ -242,7 +214,7 @@ if __name__ == "__main__":
             format(dim, args.fun, args.algo, sim_num))
         # setup optimization problem
         conv_sim, itr_num, fev_num = 0, 0, 0
-        fun, x_min, x_dom = get_function(args.fun, dim, args.process, args.mean, args.std)
+        fun, x_min, x_dom = target_function(args.fun, dim)
         # run optimization tests
         for k in range(sim_num):
             np.random.seed(k)

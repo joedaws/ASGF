@@ -182,8 +182,6 @@ def dgs_master(comm,L,rank,fun, x0,
         # broadcast new x
         x = comm.bcast(x,root=0)
 
-        #print(f"master before update on it {i} has first {x[0]} middle {x[int(len(x)/2)]} last {x[-1]}")
-
         # scatter u and s
         if update_flag == True:
             comm.Scatterv([u,count_u,displacements_u,MPI.DOUBLE], worker_chunk_u,root=0)
@@ -325,11 +323,9 @@ def dgs_worker(comm,L,rank,fun, x0,
 
         # broadcast new x
         x = comm.bcast(x,root=0)
-        #print(f"{rank} on it {i} has first {x[0]} middle {x[int(len(x)/2)]} last {x[-1]}")
 
         # scatter u and s
         if update_flag == True:
-            #print(f"worker {rank} on it {i} is updating")
             comm.Scatterv([u,count_u,displacements_u,MPI.DOUBLE], worker_chunk_u,root=0)
             comm.Scatterv([s,count_s,displacements_s,MPI.DOUBLE], worker_chunk_s,root=0)
             update_flag = False
@@ -408,7 +404,6 @@ def dgs_parallel(fun,x0,
     x_dgs = comm.bcast(x_dgs,root=0)
     itr_dgs = comm.bcast(itr_dgs,root=0)
     #MPI.Finalize()
-    #print('after Finalize')
 
     return x_dgs, itr_dgs
 
@@ -437,8 +432,6 @@ def dgs_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8.8],policy_
     agent,env,net = setup_agent_env(env_name,hs=net_layers,policy_mode=policy_mode)
 
     # initial guess of parameter vector
-    #np.random.seed(0)
-    #w0 = np.random.randn(d)/10
     w0 = get_net_param(net)
 
     if rank == 0:

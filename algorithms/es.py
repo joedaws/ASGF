@@ -110,9 +110,6 @@ def es_master(comm,L,rank,fun, x0,
 
         for d in range(worker_chunk_u.shape[0]):
             # estimate smoothed gradient
-            # #worker_chunk_dg[d] = (fun(x + worker_chunk_s[d]*worker_chunk_u[d], i+exp_num)\
-                                # #- fun(x - worker_chunk_s[d]*worker_chunk_u[d], i+exp_num))\
-                                # #/ (2*worker_chunk_s[d])
             worker_chunk_dg[d] = fun(x + worker_chunk_s[d]*worker_chunk_u[d], i+exp_num)\
                                  / worker_chunk_s[d]
 
@@ -235,9 +232,6 @@ def es_worker(comm,L,rank,fun, x0,
             update_flag = False
 
         for d in range(worker_chunk_u.shape[0]):
-            # #worker_chunk_dg[d] = (fun(x + worker_chunk_s[d]*worker_chunk_u[d], i+exp_num)\
-                                # #- fun(x - worker_chunk_s[d]*worker_chunk_u[d], i+exp_num))\
-                                # #/ (2*worker_chunk_s[d])
             worker_chunk_dg[d] = fun(x + worker_chunk_s[d]*worker_chunk_u[d], i+exp_num)\
                                  / worker_chunk_s[d]
 
@@ -297,7 +291,6 @@ def es_parallel(fun,x0,
     x_es = comm.bcast(x_es, root=0)
     itr_es = comm.bcast(itr_es, root=0)
     #MPI.Finalize()
-    #print('after Finalize')
 
     return x_es, itr_es
 
@@ -310,7 +303,7 @@ def es_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8],policy_m
     """
 
     # number of Monte-Carlo samples
-    num_mc = 1500
+    num_mc = 1000
 
     # number of layers of the neural network
     net_layers = hidden_layers
@@ -333,7 +326,6 @@ def es_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8],policy_m
 
     if rank == 0:
         print('problem dimensionality:', d)
-        print('net_layers =', net_layers)
         print('iteration   0: reward = {:6.2f}'.format(J(w0,1)))
 
     # run es parallel implementation

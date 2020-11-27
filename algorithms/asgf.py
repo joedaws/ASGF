@@ -620,23 +620,10 @@ def asgf_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8],policy
         print('problem dimensionality:', d)
         print('iteration   0: reward = {:6.2f}'.format(J(w0,1)))
 
-    # approximate Lipschitz constant
-    L = {'Pendulum-v0': 10*np.sqrt(2),
-         'InvertedPendulumBulletEnv-v0': 10*np.sqrt(2),
-         'Acrobot-v1': 10*np.sqrt(2)}
-
-    # run dgs parallel implementation
-#    asgf_args = dict(s0=np.sqrt(d)/10, s_rate=.99, m_min=5, m_max=21, L_avg=L[env_name], L_lmb=1,\
-#                     A_grad=np.inf, B_grad=np.inf,\
-#                     s_min=.01, s_max=100, lr_min=.001, lr_max=10, restart=False,\
-#                     maxiter=maxiter, xtol=1e-06, verbose=3, optimizer='adam')
-    asgf_args = dict(s0=np.sqrt(2), s_rate=1., m_min=5, m_max=21, L_avg=L[env_name], L_lmb=1,\
-                     A_grad=np.inf, B_grad=np.inf,\
+    asgf_args = dict(s0=np.sqrt(2), s_rate=1., m_min=5, m_max=21,\
+                     L_avg=10, L_lmb=1, A_grad=np.inf, B_grad=np.inf,\
                      s_min=.01, s_max=100, lr_min=.001, lr_max=10, restart=False,\
                      maxiter=maxiter, xtol=1e-06, verbose=3, optimizer='adam')
-#    asgf_args = dict(s0=np.sqrt(d)/10, s_rate=.9, m_min=5, m_max=21, L_avg=0, L_lmb=.9, \
-#                     B_grad=np.inf, s_min=.01, s_max=100, lr_min=.001, lr_max=10, restart=False,\
-#                     maxiter=maxiter, xtol=1e-06, verbose=3, optimizer='adam')
     _, itr, fun_val = asgf_parallel(lambda w,i: -J(w,i), w0, scribe=scribe, **asgf_args)
 
     print(f"Finished training in {itr} iterations with final fun_val as {fun_val}")
