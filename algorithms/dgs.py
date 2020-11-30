@@ -8,7 +8,7 @@ np.set_printoptions(linewidth=100, suppress=True, formatter={'float':'{: 0.4f}'.
 # RNG seed for numpy
 np.random.seed(0)
 
-'''
+"""
         the following is the implementation of the directional gaussian smoothing
         optimization algorithm (https://arxiv.org/abs/2002.03001)
         the default values of hyperparameters are taken from the paper
@@ -25,7 +25,7 @@ np.random.seed(0)
 
         outputs:
                 x -- the minimizer
-'''
+"""
 # Directional Gaussian Smoothing
 def dgs(fun, x0, lr=.1, M=7, r=1.5, alpha=1.0, beta=.3, gamma=.001, \
         maxiter=5000, xtol=1e-06, verbose=0):
