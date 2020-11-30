@@ -8,7 +8,7 @@ from tools.util import make_rl_j_fn, setup_agent_env, update_net_param, get_net_
 # set print options
 np.set_printoptions(linewidth=100, suppress=True, formatter={'float':'{: 0.4f}'.format})
 
-''' auxiliary functions '''
+""" auxiliary functions """ 
 def generate_directions(dim, vec=None):
 	if vec is None:
 		u = np.random.randn(dim,dim)
@@ -73,17 +73,28 @@ def gh_quad_main(g, s, args):
 
 
 
-'''
+"""
 	adaptive directional gaussian smoothing v2
 	this version is aimed to remove hyperparameter selection
 	however it does not provide 100% convergence rate, especially in low dimensions
-'''
+"""
 def asgf(fun, x0, s0, s_rate=.9, m_min=5, m_max=21, qtol=.1,\
 			A_grad=.1, B_grad=.9, A_dec=.95, A_inc=1.02, B_dec=.98, B_inc=1.01,\
 			L_avg=1, L_lmb=.9, s_min=1e-03, s_max=None, lr_min=1e-03, lr_max=1e+03,\
 			restart=True, num_res=2, res_mult=10, res_div=10, fun_req=-np.inf,\
 			maxiter=5000, xtol=1e-06, verbose=0):
+        """Serial implemenation of the ASGF algorithm
 
+        Args:
+            fun -- function to be optimized which is callable and returns float values.
+            x0  -- Starting value used in the algorithm. Should a vector stored as a numpy array.
+            s0  -- initial starting paramter. 
+
+        Returns:
+            Minimizer obtained by algorithm at terminiation.
+            Number of iterations the algorithm ran to obtain the returned minimum.
+            Number of function evaluations of fun used by the algorithm.
+        """
 	# save the input arguments
 	asgf_args = locals()
 	# initialize variables
@@ -213,6 +224,13 @@ def asgf_get_split_sizes(data,size):
 
     In this case the master receives the first row and everyone else
     just gets split up however.
+
+    Args:
+        data: an 2-d numpy array to be split row-wise
+        size: number of pieces to split the data into.
+
+    Returns:
+        Array whose ith entry represents the number of rows the ith work will recieve.
     """
     # get master row
     split = [data[0:1,:]]
@@ -231,7 +249,8 @@ def asgf_master(comm,L,rank,fun, x0, s0, scribe = RLScribe('data_adgs','unknown'
                 L_avg=1, L_lmb=.9, s_min=1e-03, s_max=None, lr_min=1e-03, lr_max=1e+03,\
                 restart=True, num_res=2, res_mult=10, res_div=10, fun_req=-np.inf,\
                 maxiter=1000, xtol=1e-06, verbose=0, optimizer='adam'):
-    """
+    """Master process in a parallel implementation of ASGF.
+
     Inputs:
         comm -- MPI comm world
         L    -- number of workers a.k.a. comm.Get_size
@@ -239,6 +258,11 @@ def asgf_master(comm,L,rank,fun, x0, s0, scribe = RLScribe('data_adgs','unknown'
         fun  -- function to be minimized
         x0   -- initialize value of minimizer
         s0   -- initial value of s
+
+    Returns:
+        Minimizer obtain by the algorithm.
+        Number of iterations the algorithm ran to obtain the returned minimum.
+        Number of function evaluations of fun used by the algorithm.
     """
 
     # Everyone: save the input arguments
@@ -345,7 +369,6 @@ def asgf_master(comm,L,rank,fun, x0, s0, scribe = RLScribe('data_adgs','unknown'
         #lr = np.clip(s/10, lr_min, lr_max)
         lr = np.clip(s/L_avg, lr_min, lr_max)
 
-        # TODO: do we need ADAM updates or not?
         # perform step
         if optimizer == 'grad':
             x -= lr * df
@@ -387,7 +410,6 @@ def asgf_master(comm,L,rank,fun, x0, s0, scribe = RLScribe('data_adgs','unknown'
                 s_rate *= s_rate
                 fun_req = -np.inf
 
-        # TODO: may want to add these steps back in
         # check convergence to a local minimum
         if restart*(num_res > -1) and s < s_min*res_mult:
             # reset parameters
@@ -419,7 +441,6 @@ def asgf_master(comm,L,rank,fun, x0, s0, scribe = RLScribe('data_adgs','unknown'
             s = s_res
 
         # update parameters for next iteration
-        # TODO make sure this is done
         # Master: updates u and s
         else:
             # adjust smoothing parameter
@@ -461,7 +482,8 @@ def asgf_worker(comm,L,rank,fun, x0, s0, scribe = RLScribe('data_adgs','unknown'
                 L_avg=1, L_lmb=.9, s_min=1e-03, s_max=None, lr_min=1e-03, lr_max=1e+03,\
                 restart=True, num_res=2, res_mult=10, res_div=10, fun_req=-np.inf,\
                 maxiter=1000, xtol=1e-06, verbose=0,optimizer='grad'):
-    """worker version of asgf
+    """Worker process version of asgf in the parallel implementation.
+
     Inputs:
         comm -- MPI comm world
         L    -- number of workers a.k.a. comm.Get_size
@@ -562,9 +584,16 @@ def asgf_parallel(fun, x0, s0, scribe = RLScribe('data_adgs','unknown','unknown'
                   L_avg=1, L_lmb=.9, s_min=1e-03, s_max=5, lr_min=1e-03, lr_max=1e+03,
                   restart=False, num_res=2, res_mult=10, res_div=10, fun_req=-np.inf,
                   maxiter=1000, xtol=1e-06, verbose=3, optimizer='grad'):
-    """
-    function which gives each worker eitehr master or worker
-    version of asgf algorithm
+    """Function for calling the various processes in the parallel implemnetation of ASGF.
+
+    This function is called by all processes launched by the main process. 
+    It gives each worker either master or worker version of asgf algorithm.
+
+    Args:
+        fun  -- function to be minimized.
+        x0   -- initialize value of minimizer.
+        s0   -- initial value of s.
+        scribe -- Kind of scribe to use to record algorithm info.
     """
     comm = MPI.COMM_WORLD
     L = comm.Get_size()
@@ -592,9 +621,7 @@ def asgf_parallel(fun, x0, s0, scribe = RLScribe('data_adgs','unknown','unknown'
     return x,itr,fun_eval
 
 def asgf_parallel_train(rank,exp_num,env_name,maxiter,hidden_layers=[8,8],policy_mode='deterministic'):
-    """
-    train an agent to solve the env_name task using
-    dgs optimization
+    """Sets up scribe, agent, and environment and then runs a reinforcement learning problem.
     """
 
     # number of layers of the neural network
