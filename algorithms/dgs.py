@@ -68,7 +68,7 @@ def dgs(fun, x0, lr=.1, M=7, r=1.5, alpha=1.0, beta=.3, gamma=.001, \
         # report the current state
         if verbose > 0:
             print('dgs-iteration {:d}: f = {:.2e}, dx = {:.2e} / {:.2e}'\
-				.format(itr+1, fun_x, np.linalg.norm(lr*df), np.amax(np.abs(lr*df))))
+                .format(itr+1, fun_x, np.linalg.norm(lr*df), np.amax(np.abs(lr*df))))
 
         # update parameters
         if np.linalg.norm(lr*df) < xtol:

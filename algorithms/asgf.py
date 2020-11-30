@@ -10,213 +10,213 @@ np.set_printoptions(linewidth=100, suppress=True, formatter={'float':'{: 0.4f}'.
 
 """ auxiliary functions """ 
 def generate_directions(dim, vec=None):
-	if vec is None:
-		u = np.random.randn(dim,dim)
-	else:
-		u = np.concatenate((vec.reshape((-1,1)), \
-							np.random.randn(dim,dim-1)), axis=1)
-	u /= np.linalg.norm(u, axis=0)
-	u = np.linalg.qr(u)[0].T
-	return u.copy()
+    if vec is None:
+        u = np.random.randn(dim,dim)
+    else:
+        u = np.concatenate((vec.reshape((-1,1)), \
+                            np.random.randn(dim,dim-1)), axis=1)
+    u /= np.linalg.norm(u, axis=0)
+    u = np.linalg.qr(u)[0].T
+    return u.copy()
 
 def reset_params(args):
-	u = generate_directions(len(args['x0']))
-	s = np.float(args['s0'])
-	L = np.float(args['L_avg'])
-	A = np.float(args['A_grad'])
-	B = np.float(args['B_grad'])
-	return u, s, L, A, B
+    u = generate_directions(len(args['x0']))
+    s = np.float(args['s0'])
+    L = np.float(args['L_avg'])
+    A = np.float(args['A_grad'])
+    B = np.float(args['B_grad'])
+    return u, s, L, A, B
 
 def gh_quad_aux(g, s, args):
-	# initialize variables
-	m_min = np.int(args['m_min'])
-	xtol = np.float(args['xtol'])
-	# Gauss-Hermite quadrature
-	p, w = np.polynomial.hermite.hermgauss(m_min)
-	g_val = np.array([g(p_i*s) for p_i in p])
-	fun_eval = m_min - 1
-	dg = np.sum(w*p * g_val) / (s*np.sqrt(np.pi)/2)
-	# compute local Lipschitz constant
-	L = max(xtol, np.amax(np.abs(g_val[1:] - g_val[:-1]) / (p[1:] - p[:-1]) / s))
-	return dg, L, fun_eval
+    # initialize variables
+    m_min = np.int(args['m_min'])
+    xtol = np.float(args['xtol'])
+    # Gauss-Hermite quadrature
+    p, w = np.polynomial.hermite.hermgauss(m_min)
+    g_val = np.array([g(p_i*s) for p_i in p])
+    fun_eval = m_min - 1
+    dg = np.sum(w*p * g_val) / (s*np.sqrt(np.pi)/2)
+    # compute local Lipschitz constant
+    L = max(xtol, np.amax(np.abs(g_val[1:] - g_val[:-1]) / (p[1:] - p[:-1]) / s))
+    return dg, L, fun_eval
 
 def gh_quad_main(g, s, args):
-	# initialize variables
-	m_min = np.int(args['m_min'])
-	m_max = np.int(args['m_max'])
-	qtol = np.float(args['qtol'])
-	xtol = np.float(args['xtol'])
-	dg_quad = np.array([np.inf])
-	g_vals, p_vals = np.array([]), np.array([])
-	fun_eval = 0
-	# estimate smoothed derivative
-	for m in range(max(3, m_min-2), m_max+1, 2):
-		# Gauss-Hermite quadrature
-		p, w = np.polynomial.hermite.hermgauss(m)
-		g_val = np.array([g(p_i*s) for p_i in p])
-		fun_eval += m - 1
-		# append sampled values
-		g_vals = np.append(g_vals, g_val)
-		p_vals = np.append(p_vals, p)
-		dg_quad = np.append(dg_quad, np.sum(w*p * g_val) / (s*np.sqrt(np.pi)/2))
-		# compute relative difference for gradient estimate
-		quad_delta = np.amin(np.abs(dg_quad[:-1] - dg_quad[-1]) \
-					/ max(np.abs(dg_quad[-1]), xtol))
-		if quad_delta < qtol:
-			break
-	# keep the unique values
-	p, p_ind = np.unique(p_vals, return_index=True)
-	g_val = g_vals[p_ind]
-	# compute local Lipschitz constant
-	L = max(xtol, np.amax(np.abs(g_val[1:] - g_val[:-1]) / (p[1:] - p[:-1]) / s))
-	return dg_quad[-1], L, fun_eval
+    # initialize variables
+    m_min = np.int(args['m_min'])
+    m_max = np.int(args['m_max'])
+    qtol = np.float(args['qtol'])
+    xtol = np.float(args['xtol'])
+    dg_quad = np.array([np.inf])
+    g_vals, p_vals = np.array([]), np.array([])
+    fun_eval = 0
+    # estimate smoothed derivative
+    for m in range(max(3, m_min-2), m_max+1, 2):
+        # Gauss-Hermite quadrature
+        p, w = np.polynomial.hermite.hermgauss(m)
+        g_val = np.array([g(p_i*s) for p_i in p])
+        fun_eval += m - 1
+        # append sampled values
+        g_vals = np.append(g_vals, g_val)
+        p_vals = np.append(p_vals, p)
+        dg_quad = np.append(dg_quad, np.sum(w*p * g_val) / (s*np.sqrt(np.pi)/2))
+        # compute relative difference for gradient estimate
+        quad_delta = np.amin(np.abs(dg_quad[:-1] - dg_quad[-1]) \
+                    / max(np.abs(dg_quad[-1]), xtol))
+        if quad_delta < qtol:
+            break
+    # keep the unique values
+    p, p_ind = np.unique(p_vals, return_index=True)
+    g_val = g_vals[p_ind]
+    # compute local Lipschitz constant
+    L = max(xtol, np.amax(np.abs(g_val[1:] - g_val[:-1]) / (p[1:] - p[:-1]) / s))
+    return dg_quad[-1], L, fun_eval
 
 
 
 """
-	adaptive directional gaussian smoothing v2
-	this version is aimed to remove hyperparameter selection
-	however it does not provide 100% convergence rate, especially in low dimensions
+    adaptive directional gaussian smoothing v2
+    this version is aimed to remove hyperparameter selection
+    however it does not provide 100% convergence rate, especially in low dimensions
 """
 def asgf(fun, x0, s0, s_rate=.9, m_min=5, m_max=21, qtol=.1,\
-			A_grad=.1, B_grad=.9, A_dec=.95, A_inc=1.02, B_dec=.98, B_inc=1.01,\
-			L_avg=1, L_lmb=.9, s_min=1e-03, s_max=None, lr_min=1e-03, lr_max=1e+03,\
-			restart=True, num_res=2, res_mult=10, res_div=10, fun_req=-np.inf,\
-			maxiter=5000, xtol=1e-06, verbose=0):
-        """Serial implemenation of the ASGF algorithm
+            A_grad=.1, B_grad=.9, A_dec=.95, A_inc=1.02, B_dec=.98, B_inc=1.01,\
+            L_avg=1, L_lmb=.9, s_min=1e-03, s_max=None, lr_min=1e-03, lr_max=1e+03,\
+            restart=True, num_res=2, res_mult=10, res_div=10, fun_req=-np.inf,\
+            maxiter=5000, xtol=1e-06, verbose=0):
+    """Serial implemenation of the ASGF algorithm
 
-        Args:
-            fun -- function to be optimized which is callable and returns float values.
-            x0  -- Starting value used in the algorithm. Should a vector stored as a numpy array.
-            s0  -- initial starting paramter. 
+    Args:
+        fun -- function to be optimized which is callable and returns float values.
+        x0  -- Starting value used in the algorithm. Should a vector stored as a numpy array.
+        s0  -- initial starting paramter. 
 
-        Returns:
-            Minimizer obtained by algorithm at terminiation.
-            Number of iterations the algorithm ran to obtain the returned minimum.
-            Number of function evaluations of fun used by the algorithm.
-        """
-	# save the input arguments
-	asgf_args = locals()
-	# initialize variables
-	x, dim = np.copy(x0), len(x0)
-	u = generate_directions(dim)
-	s = np.float(s0)
-	s_max = np.float(1000*s0) if s_max is None else s_max
-	s_status = '='
-	# save the initial state
-	x_min = np.copy(x)
-	f_min = fun_x = fun(x)
-	fun_eval = 1
-	s_res = s0
+    Returns:
+        Minimizer obtained by algorithm at terminiation.
+        Number of iterations the algorithm ran to obtain the returned minimum.
+        Number of function evaluations of fun used by the algorithm.
+    """
+    # save the input arguments
+    asgf_args = locals()
+    # initialize variables
+    x, dim = np.copy(x0), len(x0)
+    u = generate_directions(dim)
+    s = np.float(s0)
+    s_max = np.float(1000*s0) if s_max is None else s_max
+    s_status = '='
+    # save the initial state
+    x_min = np.copy(x)
+    f_min = fun_x = fun(x)
+    fun_eval = 1
+    s_res = s0
 
-	# iteratively construct minimizer
-	for itr in range(maxiter):
-		# initialize gradient and Lipschitz constants
-		dg, L_loc = np.zeros(dim), np.zeros(dim)
-		# estimate derivative in every direction
-		for d in range(dim):
-			# define directional function
-			g = lambda t : fun(x + t*u[d])
-			if d == 0:
-				# main direction
-				dg[0], L_loc[0], fun_eval_d = gh_quad_main(g, s, asgf_args)
-			else:
-				# auxiliary directions
-				dg[d], L_loc[d], fun_eval_d = gh_quad_aux(g, s, asgf_args)
-			# update number of function evaluations
-			fun_eval += fun_eval_d
+    # iteratively construct minimizer
+    for itr in range(maxiter):
+        # initialize gradient and Lipschitz constants
+        dg, L_loc = np.zeros(dim), np.zeros(dim)
+        # estimate derivative in every direction
+        for d in range(dim):
+            # define directional function
+            g = lambda t : fun(x + t*u[d])
+            if d == 0:
+                # main direction
+                dg[0], L_loc[0], fun_eval_d = gh_quad_main(g, s, asgf_args)
+            else:
+                # auxiliary directions
+                dg[d], L_loc[d], fun_eval_d = gh_quad_aux(g, s, asgf_args)
+            # update number of function evaluations
+            fun_eval += fun_eval_d
 
-		# assemble the gradient
-		df = np.matmul(dg, u)
-		# average Lipschitz constant along the main direction
-		L_avg = (1 - L_lmb) * L_loc[0] + L_lmb * L_avg
-		# select learning rate
-		lr = np.clip(s/L_avg, lr_min, lr_max)
-		# report parameters
-		if verbose > 2:
-			print('iteration {:d}:  f(x) = {:.2e} / {:.2e} = f_min,  lr = {:.2e}, '\
-				' s = {:.2e} ({:s})  dx = {:.2e}'.format(itr+1, fun_x, f_min, lr, \
-				s, s_status, np.amax(np.abs(lr * df))))
-		if verbose > 3:
-			print('  x = {}\n df = {}'.format(x[:10], df[:10]))
-		# perform step of gradient descent
-		x -= lr * df
-		fun_x = fun(x)
-		fun_eval += 1
+        # assemble the gradient
+        df = np.matmul(dg, u)
+        # average Lipschitz constant along the main direction
+        L_avg = (1 - L_lmb) * L_loc[0] + L_lmb * L_avg
+        # select learning rate
+        lr = np.clip(s/L_avg, lr_min, lr_max)
+        # report parameters
+        if verbose > 2:
+            print('iteration {:d}:  f(x) = {:.2e} / {:.2e} = f_min,  lr = {:.2e}, '\
+                ' s = {:.2e} ({:s})  dx = {:.2e}'.format(itr+1, fun_x, f_min, lr, \
+                s, s_status, np.amax(np.abs(lr * df))))
+        if verbose > 3:
+            print('  x = {}\n df = {}'.format(x[:10], df[:10]))
+        # perform step of gradient descent
+        x -= lr * df
+        fun_x = fun(x)
+        fun_eval += 1
 
-		# save the best state so far
-		if fun_x < f_min:
-			x_min = np.copy(x)
-			f_min = fun_x
-			s_res = s
-			# check if reauired value was attained
-			if f_min < fun_req:
-				if verbose > 1:
-					print('iteration {:d}: the required value is attained: '\
-						'fun(x) = {:.2e} < {:.2e} = fun_req'.format(itr+1, f_min, fun_req))
-				# disable restarts and increase decay rate
-				restart = False
-				s_rate *= s_rate
-				fun_req = -np.inf
+        # save the best state so far
+        if fun_x < f_min:
+            x_min = np.copy(x)
+            f_min = fun_x
+            s_res = s
+            # check if reauired value was attained
+            if f_min < fun_req:
+                if verbose > 1:
+                    print('iteration {:d}: the required value is attained: '\
+                        'fun(x) = {:.2e} < {:.2e} = fun_req'.format(itr+1, f_min, fun_req))
+                # disable restarts and increase decay rate
+                restart = False
+                s_rate *= s_rate
+                fun_req = -np.inf
 
-		# check termination condition
-		dx_norm = np.linalg.norm(lr*df)
-		if dx_norm < xtol:
-			break
-		# check convergence to a local minimum
-		elif restart*(num_res > -1) and s < s_min*res_mult:
-			# reset parameters
-			u, s, L_avg, A_grad, B_grad = reset_params(asgf_args)
-			if num_res > 0:
-				if verbose > 1:
-					print('iteration {:d}: reset the parameters'.format(itr+1))
-			else:
-				# restart from the best state
-				x = np.copy(x_min)
-				fun_x = f_min
-				s = s_res
-				if verbose > 1:
-					print('iteration {:d}: restarting from the state '\
-						'fun(x) = {:.2e}, s = {:.2e}'.format(itr+1, fun_x, s))
-			num_res -= 1
-		# check divergence
-		elif restart and s > s_max/res_div:
-			# reset parameters
-			u, _, L_avg, A_grad, B_grad = reset_params(asgf_args)
-			# restart from the best state
-			if verbose > 1:
-				print('iteration {:d}: restarting from the state fun(x) = {:.2e}, '\
-					's = {:.2e}\nsince the current value of s = {:.2e} is too large'\
-					.format(itr+1, f_min, s_res, s))
-			x = np.copy(x_min)
-			fun_x = f_min
-			s = s_res
-		# update parameters for next iteration
-		else:
-			# update directions
-			u = generate_directions(dim, df)
-			# adjust smoothing parameter
-			s_norm = np.amax(np.abs(dg) / L_loc)
-			if s_norm < A_grad:
-				s *= s_rate
-				A_grad *= A_dec
-				s_status = '-'
-			elif s_norm > B_grad:
-				s /= s_rate
-				B_grad *= B_inc
-				s_status = '+'
-			else:
-				A_grad *= A_inc
-				B_grad *= B_dec
-				s_status = '='
-			s = np.clip(s, s_min, s_max)
+        # check termination condition
+        dx_norm = np.linalg.norm(lr*df)
+        if dx_norm < xtol:
+            break
+        # check convergence to a local minimum
+        elif restart*(num_res > -1) and s < s_min*res_mult:
+            # reset parameters
+            u, s, L_avg, A_grad, B_grad = reset_params(asgf_args)
+            if num_res > 0:
+                if verbose > 1:
+                    print('iteration {:d}: reset the parameters'.format(itr+1))
+            else:
+                # restart from the best state
+                x = np.copy(x_min)
+                fun_x = f_min
+                s = s_res
+                if verbose > 1:
+                    print('iteration {:d}: restarting from the state '\
+                        'fun(x) = {:.2e}, s = {:.2e}'.format(itr+1, fun_x, s))
+            num_res -= 1
+        # check divergence
+        elif restart and s > s_max/res_div:
+            # reset parameters
+            u, _, L_avg, A_grad, B_grad = reset_params(asgf_args)
+            # restart from the best state
+            if verbose > 1:
+                print('iteration {:d}: restarting from the state fun(x) = {:.2e}, '\
+                    's = {:.2e}\nsince the current value of s = {:.2e} is too large'\
+                    .format(itr+1, f_min, s_res, s))
+            x = np.copy(x_min)
+            fun_x = f_min
+            s = s_res
+        # update parameters for next iteration
+        else:
+            # update directions
+            u = generate_directions(dim, df)
+            # adjust smoothing parameter
+            s_norm = np.amax(np.abs(dg) / L_loc)
+            if s_norm < A_grad:
+                s *= s_rate
+                A_grad *= A_dec
+                s_status = '-'
+            elif s_norm > B_grad:
+                s /= s_rate
+                B_grad *= B_inc
+                s_status = '+'
+            else:
+                A_grad *= A_inc
+                B_grad *= B_dec
+                s_status = '='
+            s = np.clip(s, s_min, s_max)
 
-	# report the result of optimization
-	if verbose > 0:
-		print('asgf-optimization terminated after {:d} iterations and {:d} '\
-			'function evaluations: f_min = {:.2e}'.format(itr+1, fun_eval, f_min))
+    # report the result of optimization
+    if verbose > 0:
+        print('asgf-optimization terminated after {:d} iterations and {:d} '\
+            'function evaluations: f_min = {:.2e}'.format(itr+1, fun_eval, f_min))
 
-	return x_min, itr+1, fun_eval
+    return x_min, itr+1, fun_eval
 
 
 def asgf_get_split_sizes(data,size):
