@@ -1,5 +1,5 @@
 """
-Usefule functions for testing rl with gym environments
+Useful functions for testing rl with gym environments
 """
 import torch
 import torch.nn as nn
