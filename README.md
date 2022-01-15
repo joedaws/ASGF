@@ -1,5 +1,7 @@
 # ASGF
 
+This repository contains the source code reproducing the numerical examples presented in the paper [An adaptive stochastic gradient-free approach for high-dimensional blackbox optimization](https://arxiv.org/abs/2006.10887).
+
 ## Requirements
 An appropriate environment for these pieces of code can be created
 using the environment yml file included. To create a conda environment 
